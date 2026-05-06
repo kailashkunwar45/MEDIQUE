@@ -2,6 +2,11 @@ import { Server as SocketIOServer } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { Server } from 'http';
+import jwt from 'jsonwebtoken';
+import { User, UserRole } from '../models/user.model';
+import { Appointment, AppointmentStatus } from '../models/appointment.model';
+import { ChatMessage } from '../models/chatMessage.model';
+import mongoose from 'mongoose';
 
 let io: SocketIOServer;
 
@@ -40,6 +45,84 @@ export const initSocket = async (server: Server) => {
 
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`);
+    });
+
+    const getUserFromToken = async (token?: string) => {
+      if (!token) return null;
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
+        return await User.findById(decoded.id).select('-password');
+      } catch {
+        return null;
+      }
+    };
+
+    const canAccessChat = (user: any, appt: any) => {
+      if (!user) return false;
+      if (String(appt.patientId) === String(user._id)) return true;
+      if (String(appt.doctorId) === String(user._id)) return true;
+      if (user.role === UserRole.HOSPITAL_ADMIN && user.hospitalId && String(user.hospitalId) === String(appt.hospitalId)) return true;
+      return false;
+    };
+
+    const chatWindowOpen = (appt: any) => {
+      if (appt.status !== AppointmentStatus.CONFIRMED) return { ok: false, message: 'Chat is available only after doctor accepts' };
+      const end = new Date(appt.date).getTime() + 24 * 60 * 60 * 1000;
+      if (Date.now() > end) return { ok: false, message: 'Chat session is closed (24h window expired)' };
+      return { ok: true };
+    };
+
+    socket.on('joinChat', async (data: { appointmentId: string; token: string }) => {
+      const user = await getUserFromToken(data?.token);
+      if (!user) return socket.emit('chatError', { message: 'Unauthorized' });
+      if (!data?.appointmentId || !mongoose.Types.ObjectId.isValid(data.appointmentId)) {
+        return socket.emit('chatError', { message: 'Invalid appointmentId' });
+      }
+
+      const appt = await Appointment.findById(data.appointmentId).lean();
+      if (!appt) return socket.emit('chatError', { message: 'Appointment not found' });
+      if (!canAccessChat(user, appt)) return socket.emit('chatError', { message: 'Not authorized for this chat' });
+
+      const window = chatWindowOpen(appt);
+      if (!window.ok) return socket.emit('chatError', { message: window.message });
+
+      const room = `chat_${data.appointmentId}`;
+      socket.join(room);
+      socket.emit('chatJoined', { appointmentId: data.appointmentId });
+    });
+
+    socket.on('sendMessage', async (data: { appointmentId: string; token: string; text: string }) => {
+      const user = await getUserFromToken(data?.token);
+      if (!user) return socket.emit('chatError', { message: 'Unauthorized' });
+      if (!data?.appointmentId || !mongoose.Types.ObjectId.isValid(data.appointmentId)) {
+        return socket.emit('chatError', { message: 'Invalid appointmentId' });
+      }
+      if (typeof data.text !== 'string' || !data.text.trim()) {
+        return socket.emit('chatError', { message: 'Message cannot be empty' });
+      }
+
+      const appt = await Appointment.findById(data.appointmentId).lean();
+      if (!appt) return socket.emit('chatError', { message: 'Appointment not found' });
+      if (!canAccessChat(user, appt)) return socket.emit('chatError', { message: 'Not authorized for this chat' });
+      const window = chatWindowOpen(appt);
+      if (!window.ok) return socket.emit('chatError', { message: window.message });
+
+      const msg = await ChatMessage.create({
+        appointmentId: appt._id,
+        hospitalId: appt.hospitalId,
+        senderId: user._id,
+        senderRole: user.role,
+        text: data.text.trim(),
+      });
+
+      io.to(`chat_${data.appointmentId}`).emit('message', {
+        _id: msg._id,
+        appointmentId: data.appointmentId,
+        senderId: user._id,
+        senderRole: user.role,
+        text: msg.text,
+        createdAt: msg.createdAt,
+      });
     });
   });
 

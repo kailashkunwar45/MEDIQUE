@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
+import { io } from "socket.io-client";
 
 type Session = {
   _id: string;
@@ -14,45 +15,75 @@ type Session = {
   role: "patient" | "doctor" | "hospital_admin" | "super_admin";
   hospitalId?: string;
   accessToken: string;
+  refreshToken?: string;
 };
 
+type Hospital = {
+  _id: string;
+  name: string;
+  address: string;
+  contactEmail: string;
+  contactPhone?: string;
+};
+
+type Doctor = {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  hospitalId?: string;
+};
+
+type Appointment = {
+  _id: string;
+  doctorId: Doctor;
+  hospitalId: Hospital;
+  date: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  paymentMethod: "online" | "pay_later";
+  paymentStatus: "paid" | "unpaid";
+  tokenNumber?: number;
+  cancelledAt?: string;
+  forfeited?: boolean;
+};
+
+type ChatMessage = {
+  _id: string;
+  appointmentId: string;
+  senderId: string;
+  senderRole: string;
+  text: string;
+  createdAt: string;
+};
+
+function getSession(): Session | null {
+  const raw = typeof window !== "undefined" ? localStorage.getItem("mediqueue_session") : null;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Session;
+  } catch {
+    return null;
+  }
+}
+
 export default function PatientDashboard() {
-  const [queueStatus, setQueueStatus] = useState<{ currentToken: number; totalTokens: number } | null>(null);
-  const [myToken, setMyToken] = useState<number | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'none' | 'selecting' | 'processing' | 'success'>('none');
   const [session, setSession] = useState<Session | null>(null);
-  const [doctorId, setDoctorId] = useState("");
-  const [hospitalId, setHospitalId] = useState("");
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<string>("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [lastAppointmentId, setLastAppointmentId] = useState<string | null>(null);
-  const [lastQueueId, setLastQueueId] = useState<string | null>(null);
-  const [khaltiTxnId, setKhaltiTxnId] = useState<string | null>(null);
-  const [apiResult, setApiResult] = useState<any>(null);
-  const [apiError, setApiError] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<"online" | "pay_later">("pay_later");
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [activeChatAppointmentId, setActiveChatAppointmentId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatText, setChatText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [info, setInfo] = useState<string>("");
 
   useEffect(() => {
-    const raw = localStorage.getItem("mediqueue_session");
-    if (raw) {
-      try {
-        const s = JSON.parse(raw) as Session;
-        setSession(s);
-        if (s.hospitalId) setHospitalId(String(s.hospitalId));
-      } catch {
-        // ignore
-      }
-    }
-
-    const socketInstance = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
-
-    socketInstance.emit("joinQueue", { hospitalId: "1", doctorId: "1" });
-
-    socketInstance.on("queueUpdated", (data) => {
-      setQueueStatus({ currentToken: data.currentToken, totalTokens: data.totalTokens });
-    });
-
-    return () => {
-      socketInstance.disconnect();
-    };
+    setSession(getSession());
   }, []);
 
   const authFetch = async (path: string, init?: RequestInit) => {
@@ -70,104 +101,163 @@ export default function PatientDashboard() {
     return json;
   };
 
-  const bookRealAppointment = async () => {
-    setApiError("");
-    setApiResult(null);
+  const loadHospitals = async () => {
+    setError("");
+    setInfo("");
     try {
-      const result = await authFetch("/api/appointments", {
+      const data = await authFetch("/api/hospitals");
+      setHospitals(data);
+      if (Array.isArray(data) && data.length && !selectedHospitalId) {
+        setSelectedHospitalId(data[0]._id);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to load hospitals");
+    }
+  };
+
+  const loadDoctors = async (hospitalId: string) => {
+    setError("");
+    setInfo("");
+    try {
+      if (!hospitalId) return;
+      const data = await authFetch(`/api/hospitals/${hospitalId}/doctors`);
+      setDoctors(data);
+      if (Array.isArray(data) && data.length) {
+        setSelectedDoctorId(data[0]._id);
+      } else {
+        setSelectedDoctorId("");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to load doctors");
+    }
+  };
+
+  const loadMyAppointments = async () => {
+    setError("");
+    setInfo("");
+    try {
+      const data = await authFetch("/api/appointments/my");
+      setAppointments(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load appointments");
+    }
+  };
+
+  useEffect(() => {
+    if (!session?.accessToken) return;
+    void loadHospitals();
+    void loadMyAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.accessToken]);
+
+  useEffect(() => {
+    if (!session?.accessToken) return;
+    if (!selectedHospitalId) return;
+    void loadDoctors(selectedHospitalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedHospitalId, session?.accessToken]);
+
+  const bookAppointment = async () => {
+    setError("");
+    setInfo("");
+    setLoading(true);
+    try {
+      if (!selectedHospitalId) throw new Error("Select a hospital");
+      if (!selectedDoctorId) throw new Error("Select a doctor");
+
+      await authFetch("/api/appointments", {
         method: "POST",
         body: JSON.stringify({
-          doctorId,
-          hospitalId,
+          hospitalId: selectedHospitalId,
+          doctorId: selectedDoctorId,
           date: new Date(date).toISOString(),
+          paymentMethod,
         }),
       });
-      setApiResult(result);
-      setLastAppointmentId(result?.appointment?._id || null);
-      setLastQueueId(result?.queue?._id || null);
-      if (result?.appointment?.tokenNumber) setMyToken(result.appointment.tokenNumber);
+
+      setInfo(
+        paymentMethod === "online"
+          ? "Booked and marked as PAID (online now)."
+          : "Booked and marked as UNPAID (pay after checkup)."
+      );
+      await loadMyAppointments();
     } catch (e: any) {
-      setApiError(e?.message || "Failed to book appointment");
+      setError(e?.message || "Booking failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadQueueStatus = async () => {
-    setApiError("");
-    setApiResult(null);
+  const cancelBooking = async (appointmentId: string) => {
+    setError("");
+    setInfo("");
+    setLoading(true);
     try {
-      const qs = new URLSearchParams({
-        hospitalId,
-        doctorId,
-        date: new Date(date).toISOString(),
+      await authFetch("/api/appointments/cancel", {
+        method: "POST",
+        body: JSON.stringify({ appointmentId }),
       });
-      const result = await authFetch(`/api/queues/status?${qs.toString()}`);
-      setApiResult(result);
-      setQueueStatus({ currentToken: result.currentToken, totalTokens: result.totalTokens });
+      setInfo("Booking cancelled. If it was paid, it is forfeited (no refund).");
+      await loadMyAppointments();
     } catch (e: any) {
-      setApiError(e?.message || "Failed to load queue status");
+      setError(e?.message || "Cancel failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const initiateBooking = () => {
-    setPaymentStep('selecting');
-  };
+  const openChat = async (appointmentId: string) => {
+    setError("");
+    setInfo("");
+    setActiveChatAppointmentId(appointmentId);
+    setMessages([]);
 
-  const processPayment = async (provider: string) => {
-    setPaymentStep('processing');
-    setApiError("");
-    setApiResult(null);
     try {
-      if (!lastAppointmentId) {
-        throw new Error("Book a real appointment first (it creates an appointmentId).");
-      }
-
-      if (provider === "khalti") {
-        const init = await authFetch("/api/payments/khalti/initiate", {
-          method: "POST",
-          body: JSON.stringify({ appointmentId: lastAppointmentId, amount: 500 }),
-        });
-        setKhaltiTxnId(init.transactionId || null);
-        setApiResult(init);
-
-        // simulate verification success (demo)
-        if (init.transactionId) {
-          const verified = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/payments/khalti/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: "demo_token", amount: 500, transactionId: init.transactionId }),
-          }).then((r) => r.json());
-          setApiResult({ init, verified });
-        }
-      } else if (provider === "esewa") {
-        const init = await authFetch("/api/payments/esewa/initiate", {
-          method: "POST",
-          body: JSON.stringify({ appointmentId: lastAppointmentId, amount: 500 }),
-        });
-        setApiResult(init);
-
-        // simulate verification success (demo)
-        if (init.transactionId) {
-          const verified = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/payments/esewa/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transactionId: init.transactionId, refId: "demo_ref" }),
-          }).then((r) => r.json());
-          setApiResult({ init, verified });
-        }
-      }
-
-      setPaymentStep("success");
+      const history = await authFetch(`/api/chat/${appointmentId}/messages`);
+      setMessages(history?.messages || []);
     } catch (e: any) {
-      setPaymentStep("none");
-      setApiError(e?.message || "Payment failed");
+      setError(e?.message || "Cannot open chat");
+      return;
     }
+
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+    socket.emit("joinChat", { appointmentId, token: session?.accessToken });
+    socket.on("message", (msg: ChatMessage) => {
+      if (msg.appointmentId !== appointmentId) return;
+      setMessages((prev) => [...prev, msg]);
+    });
+    socket.on("chatError", (p: any) => {
+      setError(p?.message || "Chat error");
+    });
+
+    // store socket on window for quick reuse/cleanup in this MVP
+    (window as any).__mediqueue_chat_socket?.disconnect?.();
+    (window as any).__mediqueue_chat_socket = socket;
+  };
+
+  const sendChat = async () => {
+    setError("");
+    const appointmentId = activeChatAppointmentId;
+    const text = chatText.trim();
+    if (!appointmentId) return;
+    if (!text) return;
+
+    const socket = (window as any).__mediqueue_chat_socket;
+    if (!socket) {
+      setError("Chat socket not connected");
+      return;
+    }
+    socket.emit("sendMessage", { appointmentId, token: session?.accessToken, text });
+    setChatText("");
   };
 
   return (
     <div className="p-8 space-y-8 bg-background min-h-screen">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Patient Dashboard</h1>
-        <p className="text-muted-foreground">Manage your appointments and track live queues.</p>
+        <p className="text-muted-foreground">
+          Book appointments, choose payment status (paid/unpaid), cancel with 24-hour rule, and chat after doctor accepts.
+        </p>
       </div>
 
       {session && (
@@ -187,98 +277,197 @@ export default function PatientDashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="shadow-xl rounded-2xl border-muted">
+      {error && (
+        <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
+          {error}
+        </div>
+      )}
+      {info && (
+        <div className="text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
+          {info}
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="shadow-xl rounded-2xl border-muted lg:col-span-1">
           <CardHeader>
             <CardTitle>Book Appointment</CardTitle>
-            <CardDescription>Book a real appointment (requires doctorId + hospitalId)</CardDescription>
+            <CardDescription>Select hospital, doctor, date, and payment option.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3 mb-4">
               <div className="space-y-1">
-                <Label>Hospital Id</Label>
-                <Input value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} placeholder="Mongo ObjectId" />
+                <Label>Hospital</Label>
+                <select
+                  className="w-full rounded-xl bg-muted/30 border border-muted px-3 py-2"
+                  value={selectedHospitalId}
+                  onChange={(e) => setSelectedHospitalId(e.target.value)}
+                  disabled={!session?.accessToken}
+                >
+                  {hospitals.map((h) => (
+                    <option key={h._id} value={h._id}>
+                      {h.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
-                <Label>Doctor Id</Label>
-                <Input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} placeholder="Mongo ObjectId" />
+                <Label>Doctor</Label>
+                <select
+                  className="w-full rounded-xl bg-muted/30 border border-muted px-3 py-2"
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  disabled={!session?.accessToken}
+                >
+                  {doctors.map((d) => (
+                    <option key={d._id} value={d._id}>
+                      {d.name} ({d.email})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
                 <Label>Date</Label>
                 <Input value={date} onChange={(e) => setDate(e.target.value)} placeholder="YYYY-MM-DD" />
               </div>
-              <div className="flex gap-2">
-                <Button onClick={bookRealAppointment} className="rounded-xl" disabled={!session?.accessToken}>
-                  Book Real Appointment
-                </Button>
-                <Button onClick={loadQueueStatus} variant="outline" className="rounded-xl" disabled={!session?.accessToken}>
-                  Refresh Queue
-                </Button>
-              </div>
-              {(lastAppointmentId || lastQueueId) && (
-                <div className="text-xs text-muted-foreground">
-                  Appointment: <span className="font-mono">{lastAppointmentId || "-"}</span><br />
-                  Queue: <span className="font-mono">{lastQueueId || "-"}</span>
+              <div className="space-y-2">
+                <Label>Payment option</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("online")}
+                    className={`flex-1 px-3 py-2 text-sm font-semibold rounded-xl border transition-all ${
+                      paymentMethod === "online"
+                        ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
+                        : "bg-muted/50 text-muted-foreground border-muted hover:border-primary/50"
+                    }`}
+                    disabled={!session?.accessToken}
+                  >
+                    Online now (PAID)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("pay_later")}
+                    className={`flex-1 px-3 py-2 text-sm font-semibold rounded-xl border transition-all ${
+                      paymentMethod === "pay_later"
+                        ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
+                        : "bg-muted/50 text-muted-foreground border-muted hover:border-primary/50"
+                    }`}
+                    disabled={!session?.accessToken}
+                  >
+                    Pay after checkup (UNPAID)
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
 
-            {paymentStep === 'none' && (
-              <Button onClick={initiateBooking} className="w-full rounded-xl" size="lg">
-                Book & Pay
-              </Button>
-            )}
-            
-            {paymentStep === 'selecting' && (
-              <div className="space-y-4">
-                <p className="text-sm text-center">Select Payment Method:</p>
-                <Button onClick={() => processPayment('khalti')} className="w-full bg-purple-600 hover:bg-purple-700">Pay with Khalti</Button>
-                <Button onClick={() => processPayment('esewa')} className="w-full bg-green-600 hover:bg-green-700">Pay with eSewa</Button>
-              </div>
-            )}
+            <Button
+              onClick={bookAppointment}
+              className="w-full rounded-xl"
+              size="lg"
+              disabled={!session?.accessToken || loading}
+            >
+              {loading ? "Booking..." : "Book Appointment"}
+            </Button>
 
-            {paymentStep === 'processing' && (
-              <div className="text-center text-sm py-4 animate-pulse">
-                Processing Payment securely...
-              </div>
-            )}
-
-            {paymentStep === 'success' && myToken && (
-              <div className="text-center space-y-2">
-                <div className="text-green-500 font-bold mb-2">✓ Payment Successful</div>
-                <p className="text-sm">Your Token Number:</p>
-                <p className="text-4xl font-bold text-primary">{myToken}</p>
-              </div>
-            )}
-
-            {apiError && (
-              <div className="mt-4 text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
-                {apiError}
-              </div>
-            )}
-            {apiResult && (
-              <pre className="mt-4 text-xs bg-muted/30 border border-muted rounded-xl p-3 overflow-auto max-h-64">
-                {JSON.stringify(apiResult, null, 2)}
-              </pre>
-            )}
+            <div className="mt-3 text-xs text-muted-foreground">
+              Cancel rule: cannot cancel within 24 hours. If you paid, cancellation forfeits money (no refund).
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-xl rounded-2xl border-muted bg-primary/5 border-primary/20">
+        <Card className="shadow-xl rounded-2xl border-muted lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-primary">Live Queue Tracker</CardTitle>
-            <CardDescription>Dr. Smith - General Physician</CardDescription>
+            <CardTitle>My Bookings</CardTitle>
+            <CardDescription>Pending needs doctor acceptance before chat opens.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center justify-center space-y-4 py-4">
-              <div className="text-sm text-muted-foreground">Currently Serving Token</div>
-              <div className="text-7xl font-bold text-primary animate-pulse">
-                {queueStatus?.currentToken || 0}
-              </div>
-              <div className="text-sm text-muted-foreground mt-4">
-                Total in Queue: {queueStatus?.totalTokens || 0}
-              </div>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <Button variant="outline" className="rounded-xl" onClick={loadMyAppointments} disabled={!session?.accessToken || loading}>
+                Refresh
+              </Button>
+              <Link href="/profile" className="text-sm text-primary font-semibold hover:underline">
+                My Profile
+              </Link>
             </div>
+
+            {appointments.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No bookings yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {appointments.map((a) => (
+                  <div key={a._id} className="rounded-2xl border border-muted p-4 bg-muted/10">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-semibold">
+                          <Link href={`/doctors/${a.doctorId?._id}`} className="hover:underline">
+                            {a.doctorId?.name || "Doctor"}
+                          </Link>{" "}
+                          <span className="text-muted-foreground">·</span>{" "}
+                          <span className="text-sm text-muted-foreground">{a.hospitalId?.name}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-mono break-all">
+                          {new Date(a.date).toLocaleString()} · token {a.tokenNumber ?? "-"} · status {a.status} ·{" "}
+                          {a.paymentStatus.toUpperCase()} ({a.paymentMethod})
+                        </div>
+                        {a.forfeited && (
+                          <div className="text-xs text-amber-400 mt-1">Paid booking was cancelled: money forfeited (no refund).</div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {a.status !== "cancelled" && a.status !== "completed" && (
+                          <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() => cancelBooking(a._id)}
+                            disabled={loading}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                        {a.status === "confirmed" && (
+                          <Button className="rounded-xl" onClick={() => openChat(a._id)}>
+                            Open Chat
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {activeChatAppointmentId === a._id && (
+                      <div className="mt-4 rounded-xl border border-muted bg-background/40 p-3">
+                        <div className="text-sm font-semibold mb-2">Chat (closes automatically after 24h)</div>
+                        <div className="max-h-56 overflow-auto space-y-2 pr-1">
+                          {messages.length === 0 ? (
+                            <div className="text-xs text-muted-foreground">No messages yet.</div>
+                          ) : (
+                            messages.map((m) => (
+                              <div key={m._id} className="text-sm">
+                                <span className="text-xs text-muted-foreground">
+                                  {m.senderRole} · {new Date(m.createdAt).toLocaleTimeString()}
+                                </span>
+                                <div className="whitespace-pre-wrap">{m.text}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Input
+                            value={chatText}
+                            onChange={(e) => setChatText(e.target.value)}
+                            placeholder="Type a message…"
+                            className="rounded-xl"
+                          />
+                          <Button onClick={sendChat} className="rounded-xl">
+                            Send
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
