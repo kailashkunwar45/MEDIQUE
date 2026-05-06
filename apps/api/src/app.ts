@@ -8,6 +8,7 @@ import appointmentRoutes from './routes/appointment.routes';
 import queueRoutes from './routes/queue.routes';
 import paymentRoutes from './routes/payment.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import hospitalRoutes from './routes/hospital.routes';
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/queues', queueRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/hospitals', hospitalRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'MediQueue API is running' });
