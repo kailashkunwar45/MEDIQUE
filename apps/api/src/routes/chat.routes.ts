@@ -7,7 +7,8 @@ import {
   getChatConnectionStatus,
   getMessages,
   getConversations,
-  markAsRead
+  markAsRead,
+  clearChatHistory
 } from '../controllers/chat.controller';
 import { protect, authorize } from '../middlewares/auth.middleware';
 import { UserRole } from '../models/user.model';
@@ -23,6 +24,7 @@ router.get('/pending-requests', authorize(UserRole.DOCTOR), getPendingChatReques
 router.get('/status', getChatConnectionStatus);
 router.get('/conversations', getConversations);
 router.post('/mark-read', markAsRead);
+router.post('/clear-history', clearChatHistory);
 router.get('/:appointmentId/messages', getMessages);
 
 export default router;

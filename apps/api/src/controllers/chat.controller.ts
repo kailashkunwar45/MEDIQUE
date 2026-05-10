@@ -231,3 +231,27 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const clearChatHistory = async (req: AuthRequest, res: Response) => {
+  try {
+    const { appointmentId } = req.body;
+    const userId = req.user?._id;
+
+    if (!appointmentId) return res.status(400).json({ message: 'appointmentId is required' });
+
+    // Verify ownership/participation
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+    
+    if (String(appointment.patientId) !== String(userId) && String(appointment.doctorId) !== String(userId)) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    // Delete all messages for this appointment
+    await ChatMessage.deleteMany({ appointmentId });
+
+    res.json({ message: 'Chat history cleared successfully' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};

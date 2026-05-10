@@ -161,9 +161,29 @@ export default function GlobalChatPage() {
   const loadMessages = async (appointmentId: string) => {
     try {
       const data = await authFetch(`/api/chat/${appointmentId}/messages`);
-      setMessages(data.messages || []);
+      // Race condition fix: only update state if this is still the active conversation
+      if (appointmentId === activeConvRef.current) {
+        setMessages(data.messages || []);
+      }
     } catch (e) {
       console.error("Failed to load messages", e);
+    }
+  };
+
+  const deleteHistory = async () => {
+    if (!activeConversationId || !confirm("Are you sure you want to PERMANENTLY delete all messages in this conversation?")) return;
+    
+    try {
+      await authFetch("/api/chat/clear-history", {
+        method: "POST",
+        body: JSON.stringify({ appointmentId: activeConversationId })
+      });
+      setMessages([]);
+      setConversations(prev => prev.map(c => 
+        c.appointmentId === activeConversationId ? { ...c, lastMessage: undefined } : c
+      ));
+    } catch (e) {
+      console.error("Failed to delete history", e);
     }
   };
 
@@ -329,9 +349,19 @@ export default function GlobalChatPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><Phone className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><Video className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><MoreVertical className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 rounded-xl"><Phone className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 rounded-xl"><Video className="w-4 h-4" /></Button>
+                  <div className="relative group/menu">
+                    <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 rounded-xl"><MoreVertical className="w-4 h-4" /></Button>
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 hidden group-hover/menu:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                       <button 
+                         onClick={deleteHistory}
+                         className="w-full px-4 py-2 text-left text-xs font-black text-rose-500 hover:bg-rose-50 transition-colors uppercase tracking-widest"
+                       >
+                         Delete History
+                       </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
