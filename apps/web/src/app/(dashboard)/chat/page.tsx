@@ -111,13 +111,18 @@ export default function GlobalChatPage() {
   }, []);
 
   useEffect(() => {
-    if (activeConversationId) {
+    if (activeConversationId && session) {
       loadMessages(activeConversationId);
       markAsRead(activeConversationId);
+      // Ensure we join the socket room for this specific chat
+      socketRef.current?.emit("joinChat", { 
+        appointmentId: activeConversationId, 
+        token: session.accessToken 
+      });
     } else {
       setMessages([]);
     }
-  }, [activeConversationId]);
+  }, [activeConversationId, session]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
