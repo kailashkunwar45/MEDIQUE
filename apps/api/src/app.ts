@@ -59,7 +59,7 @@ const webOutPath = path.join(__dirname, '../../web/out');
 app.use(express.static(webOutPath));
 
 // Fallback for SPA routing
-app.get('(.*)', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(webOutPath, 'index.html'));
 });
 
