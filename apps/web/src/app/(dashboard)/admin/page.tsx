@@ -108,11 +108,21 @@ export default function HospitalAdminDashboard() {
       setPatients(patientsData || []);
       setUpcoming(upcomingData || []);
       setStats(statsData || null);
+      loadUnreadCount();
     } catch (e) {
       setError("Failed to sync hospital data");
     } finally {
       setLoading(false);
     }
+  };
+
+  const [totalUnread, setTotalUnread] = useState(0);
+  const loadUnreadCount = async () => {
+    try {
+      const data = await authFetch("/api/chat/conversations");
+      const total = data.reduce((acc: number, conv: any) => acc + (conv.unreadCount || 0), 0);
+      setTotalUnread(total);
+    } catch (e) { console.error("Failed to load unread count", e); }
   };
 
   useEffect(() => {
@@ -157,13 +167,23 @@ export default function HospitalAdminDashboard() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
              <Link href="/admin/charts">
                 <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
                    <ChartIcon className="w-4 h-4 mr-2" /> Analytics
                 </Button>
              </Link>
-             <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
+            <Link href="/chat">
+               <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
+                 Secure Chat
+                 {totalUnread > 0 && (
+                   <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
+                     {totalUnread}
+                   </span>
+                 )}
+               </Button>
+            </Link>
+            <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
                 Log Out
              </Button>
              <Link href="/profile">

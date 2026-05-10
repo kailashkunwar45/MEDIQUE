@@ -1,0 +1,442 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  MessageSquare, 
+  Search, 
+  Send, 
+  User as UserIcon, 
+  Calendar, 
+  Clock,
+  ArrowLeft,
+  ChevronRight,
+  MoreVertical,
+  Phone,
+  Video
+} from "lucide-react";
+import { io, Socket } from "socket.io-client";
+import { authFetch } from "@/lib/authFetch";
+import Link from "next/link";
+import { format } from "date-fns";
+
+type Session = {
+  _id: string;
+  name: string;
+  email: string;
+  role: "patient" | "doctor" | "hospital_admin" | "super_admin";
+  accessToken: string;
+};
+
+type Conversation = {
+  appointmentId: string;
+  partner: {
+    _id: string;
+    name: string;
+    email: string;
+    specialization?: string;
+  };
+  lastMessage?: {
+    text: string;
+    createdAt: string;
+    senderId: string;
+  };
+  unreadCount: number;
+  status: string;
+  date: string;
+};
+
+type ChatMessage = {
+  _id: string;
+  appointmentId: string;
+  senderId: string;
+  senderRole: string;
+  text: string;
+  createdAt: string;
+};
+
+function getSession(): Session | null {
+  const raw = typeof window !== "undefined" ? localStorage.getItem("mediqueue_session") : null;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export default function GlobalChatPage() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const socketRef = useRef<Socket | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const s = getSession();
+    setSession(s);
+    if (s?.accessToken) {
+      loadConversations();
+      const socket = io();
+      socketRef.current = socket;
+      socket.emit("registerUser", { token: s.accessToken });
+      
+      socket.on("message", (msg: ChatMessage) => {
+        setConversations(prev => prev.map(conv => {
+          if (conv.appointmentId === msg.appointmentId) {
+            return {
+              ...conv,
+              lastMessage: {
+                text: msg.text,
+                createdAt: msg.createdAt,
+                senderId: msg.senderId
+              },
+              unreadCount: msg.appointmentId === activeConversationId ? 0 : conv.unreadCount + 1
+            };
+          }
+          return conv;
+        }));
+
+        if (msg.appointmentId === activeConversationId) {
+          setMessages(prev => [...prev, msg]);
+        }
+      });
+
+      return () => { socket.disconnect(); };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeConversationId) {
+      loadMessages(activeConversationId);
+      markAsRead(activeConversationId);
+    } else {
+      setMessages([]);
+    }
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const loadConversations = async () => {
+    try {
+      const data = await authFetch("/api/chat/conversations");
+      setConversations(data);
+    } catch (e) {
+      console.error("Failed to load conversations", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMessages = async (appointmentId: string) => {
+    try {
+      const data = await authFetch(`/api/chat/${appointmentId}/messages`);
+      setMessages(data.messages || []);
+    } catch (e) {
+      console.error("Failed to load messages", e);
+    }
+  };
+
+  const markAsRead = async (appointmentId: string) => {
+    try {
+      await authFetch("/api/chat/mark-read", {
+        method: "POST",
+        body: JSON.stringify({ appointmentId })
+      });
+      setConversations(prev => prev.map(c => 
+        c.appointmentId === appointmentId ? { ...c, unreadCount: 0 } : c
+      ));
+    } catch (e) {
+      console.error("Failed to mark as read", e);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!inputText.trim() || !activeConversationId || !session) return;
+    const text = inputText;
+    setInputText("");
+
+    try {
+      socketRef.current?.emit("sendMessage", {
+        appointmentId: activeConversationId,
+        text,
+        token: session.accessToken
+      });
+    } catch (e) {
+      console.error("Failed to send message", e);
+    }
+  };
+
+  const activeConv = conversations.find(c => c.appointmentId === activeConversationId);
+  const filteredConversations = conversations.filter(c => 
+    c.partner.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
+        <div className="w-12 h-12 border-4 border-[#1E3A8A] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0F172A] flex flex-col">
+      {/* GLOBAL HEADER */}
+      <div className="bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-4">
+          <Link href={`/${session?.role || "patient"}`}>
+             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white hover:bg-white/5 rounded-xl">
+               <ArrowLeft className="w-5 h-5" />
+             </Button>
+          </Link>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white uppercase">Secure Network</h1>
+            <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-70">
+              Encrypted Medical Communications
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex flex-col items-end mr-4">
+             <span className="text-xs font-black text-white">{session?.name}</span>
+             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{session?.role} terminal</span>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] flex items-center justify-center shadow-lg border border-white/10">
+            <UserIcon className="text-white w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* SIDEBAR: CONVERSATION LIST */}
+        <div className={`w-full lg:w-96 border-r border-white/5 bg-slate-900/30 flex flex-col ${activeConversationId ? "hidden lg:flex" : "flex"}`}>
+          <div className="p-6">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-[#1E3A8A] transition-colors" />
+              <Input 
+                placeholder="Search encrypted channels..." 
+                className="pl-11 h-12 rounded-[16px] bg-slate-900/50 border-white/5 focus:border-[#1E3A8A]/50 focus:ring-0 text-xs font-bold text-slate-300 placeholder:text-slate-600"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-2 pb-6">
+            {filteredConversations.length === 0 ? (
+              <div className="text-center py-20 px-6 space-y-4">
+                <div className="w-16 h-16 bg-slate-800/50 rounded-2xl flex items-center justify-center mx-auto">
+                   <MessageSquare className="text-slate-600 w-8 h-8" />
+                </div>
+                <p className="text-xs font-black text-slate-600 uppercase tracking-widest">No Active Channels Found</p>
+              </div>
+            ) : (
+              filteredConversations.map((conv) => (
+                <div 
+                  key={conv.appointmentId}
+                  onClick={() => setActiveConversationId(conv.appointmentId)}
+                  className={`group relative p-4 rounded-[24px] cursor-pointer transition-all duration-300 ${
+                    activeConversationId === conv.appointmentId 
+                    ? "bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] shadow-2xl shadow-blue-500/20" 
+                    : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className="flex gap-4">
+                    <div className="relative">
+                      <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center border transition-all duration-300 ${
+                        activeConversationId === conv.appointmentId ? "bg-white/10 border-white/20" : "bg-slate-800 border-white/5"
+                      }`}>
+                         <UserIcon className={`w-6 h-6 ${activeConversationId === conv.appointmentId ? "text-white" : "text-slate-400"}`} />
+                      </div>
+                      {conv.unreadCount > 0 && (
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-rose-500 border-4 border-slate-900 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-lg animate-bounce">
+                          {conv.unreadCount}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="flex justify-between items-start mb-1">
+                        <h3 className={`text-sm font-black truncate tracking-tight transition-colors ${
+                          activeConversationId === conv.appointmentId ? "text-white" : "text-slate-200"
+                        }`}>
+                          {session?.role === 'doctor' ? conv.partner.name : `Dr. ${conv.partner.name}`}
+                        </h3>
+                        <span className={`text-[9px] font-black uppercase tracking-widest flex-shrink-0 ml-2 ${
+                          activeConversationId === conv.appointmentId ? "text-white/60" : "text-slate-500"
+                        }`}>
+                          {conv.lastMessage ? format(new Date(conv.lastMessage.createdAt), "HH:mm") : format(new Date(conv.date), "MMM d")}
+                        </span>
+                      </div>
+                      <p className={`text-[11px] font-bold truncate leading-relaxed ${
+                        activeConversationId === conv.appointmentId ? "text-white/70" : "text-slate-500"
+                      }`}>
+                        {conv.lastMessage ? conv.lastMessage.text : "No messages yet. Initial contact secure."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* MAIN CHAT AREA */}
+        <div className={`flex-1 flex flex-col bg-slate-950/20 ${!activeConversationId ? "hidden lg:flex" : "flex"}`}>
+          {activeConversationId && activeConv ? (
+            <>
+              {/* CHAT HEADER */}
+              <div className="px-8 py-4 bg-slate-900/50 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="lg:hidden text-slate-400" 
+                    onClick={() => setActiveConversationId(null)}
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-white/5 flex items-center justify-center">
+                    <UserIcon className="text-slate-400 w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-white tracking-tight">
+                       {session?.role === 'doctor' ? activeConv.partner.name : `Dr. ${activeConv.partner.name}`}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-0.5">
+                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
+                       <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Secure Link</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><Phone className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><Video className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white rounded-xl"><MoreVertical className="w-4 h-4" /></Button>
+                </div>
+              </div>
+
+              {/* MESSAGES */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                {/* APPOINTMENT INFO CARD */}
+                <div className="max-w-md mx-auto p-6 rounded-[28px] bg-slate-900/50 border border-white/5 flex flex-col items-center text-center space-y-4 mb-12">
+                   <div className="w-16 h-16 rounded-full bg-[#1E3A8A]/10 border border-[#1E3A8A]/20 flex items-center justify-center">
+                      <Calendar className="text-[#1E3A8A] w-6 h-6" />
+                   </div>
+                   <div>
+                      <h4 className="text-xs font-black text-white uppercase tracking-widest">Appointment Protocol</h4>
+                      <p className="text-[10px] text-slate-500 font-bold mt-1">
+                        Scheduled for {format(new Date(activeConv.date), "MMMM d, yyyy")}
+                      </p>
+                   </div>
+                   <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] font-black uppercase tracking-tighter">Verified Connection</Badge>
+                </div>
+
+                {messages.map((msg, i) => {
+                  const isMe = msg.senderId === session?._id;
+                  return (
+                    <div key={msg._id || i} className={`flex ${isMe ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                      <div className={`max-w-[70%] group ${isMe ? "items-end" : "items-start"}`}>
+                        <div className={`px-6 py-4 rounded-[24px] text-sm font-bold leading-relaxed shadow-lg ${
+                          isMe 
+                          ? "bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] text-white rounded-br-none" 
+                          : "bg-slate-800 text-slate-200 border border-white/5 rounded-bl-none"
+                        }`}>
+                          {msg.text}
+                        </div>
+                        <div className={`flex items-center gap-2 mt-2 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                            {format(new Date(msg.createdAt), "HH:mm")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* INPUT AREA */}
+              <div className="p-8 bg-slate-900/30 border-t border-white/5">
+                <div className="max-w-4xl mx-auto flex gap-4">
+                  <div className="flex-1 relative">
+                    <Input 
+                      placeholder="Type your secure message..." 
+                      className="h-14 rounded-[20px] bg-slate-900 border-white/10 focus:border-[#1E3A8A] focus:ring-0 text-sm font-bold text-white px-6"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    />
+                  </div>
+                  <Button 
+                    className="w-14 h-14 rounded-[20px] bg-[#1E3A8A] hover:bg-[#2563EB] text-white shadow-xl shadow-blue-500/20 transition-all active:scale-95"
+                    onClick={sendMessage}
+                  >
+                    <Send className="w-5 h-5" />
+                  </Button>
+                </div>
+                <p className="text-center text-[9px] text-slate-600 font-black uppercase tracking-widest mt-4 opacity-50">
+                   End-to-End Encrypted Session · MediQueue Security Core
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-8">
+              <div className="w-32 h-32 bg-slate-900/50 rounded-[40px] border border-white/5 flex items-center justify-center shadow-2xl relative">
+                 <MessageSquare className="text-slate-700 w-12 h-12" />
+                 <div className="absolute -top-4 -right-4 w-12 h-12 bg-blue-500/10 rounded-full blur-2xl"></div>
+              </div>
+              <div className="space-y-3 max-w-xs">
+                <h3 className="text-2xl font-black text-white tracking-tight uppercase">Medical Link</h3>
+                <p className="text-slate-500 font-bold leading-relaxed text-xs">
+                  Select a secure channel from the directory to begin encrypted medical consultation.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <ShieldCheck className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
+                    <p className="text-[8px] font-black text-slate-500 uppercase">HIPAA Secure</p>
+                 </div>
+                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <Clock className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+                    <p className="text-[8px] font-black text-slate-500 uppercase">Real-time Sync</p>
+                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Simple icons from Lucide but with specific styles
+function ShieldCheck({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}

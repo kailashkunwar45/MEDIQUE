@@ -98,6 +98,7 @@ export default function PatientDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [doctorHospitals, setDoctorHospitals] = useState<Hospital[]>([]);
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>("");
+  const [totalUnread, setTotalUnread] = useState(0);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
 
@@ -150,6 +151,14 @@ export default function PatientDashboard() {
     }
   }, [activeChatAppointmentId]);
 
+  const loadUnreadCount = async () => {
+    try {
+      const data = await authFetch("/api/chat/conversations");
+      const total = data.reduce((acc: number, conv: any) => acc + (conv.unreadCount || 0), 0);
+      setTotalUnread(total);
+    } catch (e) { console.error("Failed to load unread count", e); }
+  };
+
   useEffect(() => { 
     const s = getSession();
     if (s && s.role !== "patient") {
@@ -159,11 +168,14 @@ export default function PatientDashboard() {
     setSession(s); 
 
     if (s?.accessToken) {
+      loadMyAppointments();
+      loadUnreadCount();
       const socket = io();
       globalSocketRef.current = socket;
       socket.emit("registerUser", { token: s.accessToken });
       
       socket.on("messageNotification", (msg: ChatMessage) => {
+        loadUnreadCount();
         if (activeChatRef.current !== msg.appointmentId) {
           setUnreadCounts(prev => ({
             ...prev,
@@ -438,6 +450,17 @@ export default function PatientDashboard() {
               Log Out
             </Button>
 
+            <Link href="/chat">
+               <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
+                 Secure Chat
+                 {totalUnread > 0 && (
+                   <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
+                     {totalUnread}
+                   </span>
+                 )}
+               </Button>
+            </Link>
+            
             <Link href="/profile">
                <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">Medical ID</Button>
             </Link>

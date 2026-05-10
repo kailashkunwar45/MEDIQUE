@@ -108,6 +108,7 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [totalUnread, setTotalUnread] = useState(0);
   const [openChatIds, setOpenChatIds] = useState<string[]>([]);
   const [expandedAppointmentId, setExpandedAppointmentId] = useState<string | null>(null);
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>({});
@@ -137,8 +138,19 @@ export default function DoctorDashboard() {
       return;
     }
     setSession(s);
-    if (s?.accessToken) void loadUserData();
+    if (s?.accessToken) {
+      void loadUserData();
+      void loadUnreadCount();
+    }
   }, []);
+
+  const loadUnreadCount = async () => {
+    try {
+      const data = await authFetch("/api/chat/conversations");
+      const total = data.reduce((acc: number, conv: any) => acc + (conv.unreadCount || 0), 0);
+      setTotalUnread(total);
+    } catch (e) { console.error("Failed to load unread count", e); }
+  };
 
   const loadUserData = async () => {
     try {
@@ -470,7 +482,18 @@ export default function DoctorDashboard() {
              <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
                Log Out
              </Button>
-             <Link href="/profile">
+            <Link href="/chat">
+               <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
+                 Secure Chat
+                 {totalUnread > 0 && (
+                   <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
+                     {totalUnread}
+                   </span>
+                 )}
+               </Button>
+            </Link>
+            
+            <Link href="/profile">
                <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">Operational ID</Button>
              </Link>
            </div>

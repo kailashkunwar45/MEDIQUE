@@ -169,3 +169,65 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getConversations = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const role = req.user?.role;
+
+    // 1. Find all appointments for this user
+    const query = role === 'doctor' ? { doctorId: userId } : { patientId: userId };
+    const appointments = await Appointment.find(query)
+      .populate('patientId', 'name email')
+      .populate('doctorId', 'name specialization')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    // 2. For each appointment, get last message and unread count
+    const conversations = await Promise.all(appointments.map(async (appt: any) => {
+      const lastMessage = await ChatMessage.findOne({ appointmentId: appt._id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const unreadCount = await ChatMessage.countDocuments({
+        appointmentId: appt._id,
+        senderId: { $ne: userId },
+        isRead: false
+      });
+
+      return {
+        appointmentId: appt._id,
+        partner: role === 'doctor' ? appt.patientId : appt.doctorId,
+        lastMessage,
+        unreadCount,
+        status: appt.status,
+        date: appt.date
+      };
+    }));
+
+    // Filter to only include those that have messages or are eligible
+    const filtered = conversations.filter(c => c.lastMessage || c.status === AppointmentStatus.CONFIRMED);
+
+    res.json(filtered);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const markAsRead = async (req: AuthRequest, res: Response) => {
+  try {
+    const { appointmentId } = req.body;
+    const userId = req.user?._id;
+
+    if (!appointmentId) return res.status(400).json({ message: 'appointmentId is required' });
+
+    await ChatMessage.updateMany(
+      { appointmentId, senderId: { $ne: userId }, isRead: false },
+      { $set: { isRead: true } }
+    );
+
+    res.json({ message: 'Messages marked as read' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};

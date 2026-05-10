@@ -6,6 +6,7 @@ export interface IChatMessage extends Document {
   senderId: mongoose.Types.ObjectId;
   senderRole: string;
   text: string;
+  isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const chatMessageSchema = new Schema<IChatMessage>(
     senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     senderRole: { type: String, required: true },
     text: { type: String, required: true, maxlength: 2000 },
+    isRead: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

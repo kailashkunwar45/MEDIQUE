@@ -19,6 +19,8 @@ router.post('/respond', authorize(UserRole.DOCTOR), respondToChatRequest);
 router.post('/reconnect', authorize(UserRole.DOCTOR), reconnectWithPatient);
 router.get('/pending-requests', authorize(UserRole.DOCTOR), getPendingChatRequests);
 router.get('/status', getChatConnectionStatus);
+router.get('/conversations', getConversations);
+router.post('/mark-read', markAsRead);
 router.get('/:appointmentId/messages', getMessages);
 
 export default router;
