@@ -75,6 +75,11 @@ export default function GlobalChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const activeConvRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeConvRef.current = activeConversationId;
+  }, [activeConversationId]);
 
   useEffect(() => {
     const s = getSession();
@@ -95,13 +100,13 @@ export default function GlobalChatPage() {
                 createdAt: msg.createdAt,
                 senderId: msg.senderId
               },
-              unreadCount: msg.appointmentId === activeConversationId ? 0 : conv.unreadCount + 1
+              unreadCount: msg.appointmentId === activeConvRef.current ? 0 : conv.unreadCount + 1
             };
           }
           return conv;
         }));
 
-        if (msg.appointmentId === activeConversationId) {
+        if (msg.appointmentId === activeConvRef.current) {
           setMessages(prev => [...prev, msg]);
         }
       });
