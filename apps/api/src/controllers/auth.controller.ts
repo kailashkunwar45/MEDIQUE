@@ -14,14 +14,15 @@ const normalizeRole = (raw: unknown): UserRole => {
   if (upper === 'PATIENT') return UserRole.PATIENT;
   if (upper === 'DOCTOR') return UserRole.DOCTOR;
   if (upper === 'HOSPITAL_ADMIN') return UserRole.HOSPITAL_ADMIN;
-  if (upper === 'SUPER_ADMIN') return UserRole.SUPER_ADMIN;
-
+  // SUPER_ADMIN registration blocked
+  if (upper === 'SUPER_ADMIN') throw new Error('Super Admin accounts must be created manually');
+  
   const lower = v.toLowerCase();
   if (lower === UserRole.PATIENT) return UserRole.PATIENT;
   if (lower === UserRole.DOCTOR) return UserRole.DOCTOR;
   if (lower === UserRole.HOSPITAL_ADMIN) return UserRole.HOSPITAL_ADMIN;
-  if (lower === UserRole.SUPER_ADMIN) return UserRole.SUPER_ADMIN;
-
+  if (lower === UserRole.SUPER_ADMIN) throw new Error('Super Admin accounts must be created manually');
+  
   return UserRole.PATIENT;
 };
 
@@ -77,6 +78,8 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         hospitalId: user.hospitalId,
+        hospitalIds: user.hospitalIds || [],
+        isOnboarded: user.isOnboarded || false,
         accessToken,
         refreshToken,
       });
@@ -95,6 +98,27 @@ export const login = async (req: Request, res: Response) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
+      if (user.isBanned) {
+        return res.status(403).json({ message: `Your account is banned. Reason: ${user.banReason || 'Unspecified'}` });
+      }
+
+      if (user.hospitalId) {
+        const hospital = await Hospital.findById(user.hospitalId);
+        if (hospital?.isBanned) {
+          return res.status(403).json({ message: `Your hospital is temporarily banned. Reason: ${hospital.banReason || 'Unspecified'}` });
+        }
+      }
+
+      if (user.role === UserRole.DOCTOR) {
+        if (user.isOnboarded && !user.isApprovedBySuperAdmin) {
+          return res.status(403).json({ message: 'Account pending final super-admin approval.' });
+        }
+      }
+
+      if (user.role === UserRole.HOSPITAL_ADMIN && user.isOnboarded && !user.isApprovedBySuperAdmin) {
+        return res.status(403).json({ message: 'Hospital admin account pending super-admin verification.' });
+      }
+
       const { accessToken, refreshToken } = generateTokens(user._id.toString(), user.role);
       
       res.json({
@@ -103,6 +127,8 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         hospitalId: user.hospitalId,
+        hospitalIds: user.hospitalIds || [],
+        isOnboarded: user.isOnboarded || false,
         accessToken,
         refreshToken,
       });

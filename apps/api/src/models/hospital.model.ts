@@ -7,6 +7,12 @@ export interface IHospital extends Document {
   contactPhone: string;
   subscriptionTier: 'free' | 'pro' | 'premium';
   isActive: boolean;
+  certification?: string;
+  services: string[];
+  isOnboarded: boolean;
+  isApprovedBySuperAdmin: boolean;
+  isBanned: boolean;
+  banReason?: string;
 }
 
 const hospitalSchema = new Schema<IHospital>(
@@ -17,6 +23,12 @@ const hospitalSchema = new Schema<IHospital>(
     contactPhone: { type: String },
     subscriptionTier: { type: String, enum: ['free', 'pro', 'premium'], default: 'free' },
     isActive: { type: Boolean, default: true },
+    certification: { type: String },
+    services: [{ type: String }],
+    isOnboarded: { type: Boolean, default: false },
+    isApprovedBySuperAdmin: { type: Boolean, default: false },
+    isBanned: { type: Boolean, default: false },
+    banReason: { type: String },
   },
   {
     timestamps: true,

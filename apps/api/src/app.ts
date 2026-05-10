@@ -11,6 +11,9 @@ import analyticsRoutes from './routes/analytics.routes';
 import hospitalRoutes from './routes/hospital.routes';
 import reviewRoutes from './routes/review.routes';
 import chatRoutes from './routes/chat.routes';
+import userRoutes from './routes/user.routes';
+import hospitalAdminRoutes from './routes/hospitalAdmin.routes';
+import superAdminRoutes from './routes/superAdmin.routes';
 
 const app = express();
 
@@ -37,6 +40,9 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/hospitals', hospitalRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/hospital-admin', hospitalAdminRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'MediQueue API is running' });

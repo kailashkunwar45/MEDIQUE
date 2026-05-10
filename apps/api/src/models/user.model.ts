@@ -13,8 +13,26 @@ export interface IUser extends Document {
   email: string;
   password?: string;
   role: UserRole;
-  hospitalId?: mongoose.Types.ObjectId;
+  hospitalId?: mongoose.Types.ObjectId; // Primary/legacy
+  hospitalIds: mongoose.Types.ObjectId[]; // Multi-hospital support
   phone?: string;
+  specialization?: string;
+  bio?: string;
+  degree?: string;
+  certification?: string;
+  college?: string;
+  experienceYears?: number;
+  previousWork?: string;
+  isOnboarded: boolean;
+  isVerified: boolean; // Hospital verification
+  isApprovedBySuperAdmin: boolean; // Final global approval
+  isBanned: boolean;
+  banReason?: string;
+  hospitalApprovals: {
+    hospitalId: mongoose.Types.ObjectId;
+    status: 'pending' | 'approved' | 'rejected';
+    updatedAt: Date;
+  }[];
   matchPassword(enteredPassword: string): Promise<boolean>;
 }
 
@@ -33,7 +51,28 @@ const userSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: 'Hospital',
     },
+    hospitalIds: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Hospital',
+    }],
     phone: { type: String },
+    specialization: { type: String },
+    bio: { type: String },
+    degree: { type: String },
+    certification: { type: String },
+    college: { type: String },
+    experienceYears: { type: Number },
+    previousWork: { type: String },
+    isOnboarded: { type: Boolean, default: false },
+    isVerified: { type: Boolean, default: false },
+    isApprovedBySuperAdmin: { type: Boolean, default: false },
+    isBanned: { type: Boolean, default: false },
+    banReason: { type: String },
+    hospitalApprovals: [{
+      hospitalId: { type: Schema.Types.ObjectId, ref: 'Hospital' },
+      status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+      updatedAt: { type: Date, default: Date.now }
+    }],
   },
   {
     timestamps: true,

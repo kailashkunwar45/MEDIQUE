@@ -43,12 +43,19 @@ export default function RegisterPage() {
             email: data.email,
             role: data.role,
             hospitalId: data.hospitalId,
+            hospitalIds: data.hospitalIds,
+            isOnboarded: data.isOnboarded,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
           })
         );
 
         // Role-based redirect
+        if (data.role === "doctor" && !data.isOnboarded) {
+          router.push("/doctor/onboarding");
+          return;
+        }
+
         const roleRedirects: Record<string, string> = {
           patient: "/patient",
           doctor: "/doctor",
@@ -67,9 +74,19 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-[450px] shadow-2xl rounded-2xl border-muted bg-card/50 backdrop-blur-xl">
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden">
+      {/* Background Wallpaper */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url("/wallpaper.png")' }}
+      />
+      <div className="absolute inset-0 z-0 bg-black/20 backdrop-blur-[2px]" />
+
+      <Card className="relative z-10 w-full max-w-[450px] shadow-2xl rounded-[2.5rem] border-white/10 bg-black/40 backdrop-blur-2xl p-2">
         <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <img src="/logo.png" alt="MediQueue Logo" className="w-20 h-20 object-contain" />
+          </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-primary">Join MediQueue</CardTitle>
           <CardDescription>
             Choose your role and enter your details to get started
@@ -86,7 +103,7 @@ export default function RegisterPage() {
             <div className="space-y-2">
               <Label>Select Your Role</Label>
               <div className="grid grid-cols-2 gap-2">
-                {["PATIENT", "DOCTOR", "HOSPITAL_ADMIN", "SUPER_ADMIN"].map((role) => (
+                {["PATIENT", "DOCTOR", "HOSPITAL_ADMIN"].map((role) => (
                   <button
                     key={role}
                     type="button"

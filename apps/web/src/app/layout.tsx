@@ -1,25 +1,18 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const poppins = Poppins({ 
+  subsets: ["latin"], 
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-heading" 
 });
 
 export const metadata: Metadata = {
   title: "MediQueue | Smart Hospital System",
-  description: "Real-time hospital queue and booking system",
+  description: "Professional hospital management and appointment booking platform.",
 };
 
 export default function RootLayout({
@@ -28,9 +21,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans dark", inter.variable)}>
+    <html lang="en" className={cn("font-sans", inter.variable, poppins.variable)}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="antialiased min-h-screen"
       >
         {children}
       </body>

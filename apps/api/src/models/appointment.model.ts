@@ -5,21 +5,27 @@ export enum AppointmentStatus {
   CONFIRMED = 'confirmed',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
+  DECLINED = 'declined',
 }
 
 export interface IAppointment extends Document {
   patientId: mongoose.Types.ObjectId;
   doctorId: mongoose.Types.ObjectId;
-  hospitalId: mongoose.Types.ObjectId;
+  hospitalId: mongoose.Types.ObjectId; // The hospital selected for this visit
   date: Date;
   status: AppointmentStatus;
   paymentMethod: 'online' | 'pay_later';
   paymentStatus: 'paid' | 'unpaid';
   acceptedAt?: Date;
+  declinedAt?: Date;
+  declineReason?: string;
   cancelledAt?: Date;
   cancellationReason?: string;
   forfeited?: boolean; // if paid & cancelled => no refund
   tokenNumber?: number;
+  hospitalLocked: boolean; // Cannot change hospital after acceptance
+  doctorNotes?: string; // Memory purpose comments on patient health
+  cancelReason?: string;
 }
 
 const appointmentSchema = new Schema<IAppointment>(
@@ -44,10 +50,15 @@ const appointmentSchema = new Schema<IAppointment>(
       default: 'unpaid',
     },
     acceptedAt: { type: Date },
+    declinedAt: { type: Date },
+    declineReason: { type: String },
     cancelledAt: { type: Date },
     cancellationReason: { type: String },
     forfeited: { type: Boolean, default: false },
     tokenNumber: { type: Number },
+    hospitalLocked: { type: Boolean, default: false },
+    doctorNotes: { type: String },
+    cancelReason: { type: String },
   },
   {
     timestamps: true,

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
+import { LayoutDashboard, CalendarDays } from "lucide-react";
+import { authFetch } from "@/lib/authFetch";
 
 type Session = {
   _id: string;
@@ -31,6 +33,7 @@ type Doctor = {
   name: string;
   email: string;
   phone?: string;
+  specialization?: string;
   hospitalId?: string;
 };
 
@@ -59,19 +62,67 @@ type ChatMessage = {
 function getSession(): Session | null {
   const raw = typeof window !== "undefined" ? localStorage.getItem("mediqueue_session") : null;
   if (!raw) return null;
-  try {
-    return JSON.parse(raw) as Session;
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(raw) as Session; } catch { return null; }
+}
+
+function StatusBadge({ status }: { status: Appointment["status"] }) {
+  const map: Record<string, string> = {
+    pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    confirmed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    completed: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    cancelled: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  };
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border capitalize ${map[status]}`}>
+      {status}
+    </span>
+  );
+}
+
+function PaymentBadge({ status, method }: { status: "paid" | "unpaid"; method: string }) {
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${status === "paid"
+      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+    }`}>
+      {status === "paid" ? "✓ PAID" : "⏳ UNPAID"} · {method === "online" ? "Online" : "Cash on Checkup"}
+    </span>
+  );
 }
 
 export default function PatientDashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [doctorHospitals, setDoctorHospitals] = useState<Hospital[]>([]);
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>("");
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
+  const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
+
+  const standardSpecializations = [
+    "Cardiology", "Dermatology", "ENT", "Gastroenterology", 
+    "General Practice", "Gynecology", "Neurology", "Oncology", 
+    "Ophthalmology", "Orthopedics", "Pediatrics", "Psychiatry", 
+    "Radiology", "Urology"
+  ];
+
+  const derivedSpecializations = doctors.map(d => d.specialization).filter(Boolean) as string[];
+  const availableSpecializations = Array.from(new Set([...standardSpecializations, ...derivedSpecializations])).sort();
+
+  const filteredDoctors = selectedSpecialization 
+    ? doctors.filter(d => (d.specialization || "").toLowerCase() === selectedSpecialization.toLowerCase()) 
+    : doctors;
+
+  const handleSpecializationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const spec = e.target.value;
+    setSelectedSpecialization(spec);
+    const newFiltered = spec ? doctors.filter(d => (d.specialization || "").toLowerCase() === spec.toLowerCase()) : doctors;
+    if (newFiltered.length > 0) {
+      setSelectedDoctorId(newFiltered[0]._id);
+    } else {
+      setSelectedDoctorId("");
+    }
+  };
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<"online" | "pay_later">("pay_later");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -81,25 +132,11 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [info, setInfo] = useState<string>("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
-  useEffect(() => {
-    setSession(getSession());
-  }, []);
+  useEffect(() => { setSession(getSession()); }, []);
 
-  const authFetch = async (path: string, init?: RequestInit) => {
-    if (!session?.accessToken) throw new Error("Not logged in");
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
-        ...(init?.headers || {}),
-      },
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json?.message || `Request failed (${res.status})`);
-    return json;
-  };
 
   const loadHospitals = async () => {
     setError("");
@@ -107,6 +144,7 @@ export default function PatientDashboard() {
     try {
       const data = await authFetch("/api/hospitals");
       setHospitals(data);
+      setDoctorHospitals(data);
       if (Array.isArray(data) && data.length && !selectedHospitalId) {
         setSelectedHospitalId(data[0]._id);
       }
@@ -115,13 +153,13 @@ export default function PatientDashboard() {
     }
   };
 
-  const loadDoctors = async (hospitalId: string) => {
+  const loadDoctors = async () => {
     setError("");
     setInfo("");
     try {
-      if (!hospitalId) return;
-      const data = await authFetch(`/api/hospitals/${hospitalId}/doctors`);
+      const data = await authFetch(`/api/users/doctors`);
       setDoctors(data);
+      setSelectedSpecialization("");
       if (Array.isArray(data) && data.length) {
         setSelectedDoctorId(data[0]._id);
       } else {
@@ -146,16 +184,20 @@ export default function PatientDashboard() {
   useEffect(() => {
     if (!session?.accessToken) return;
     void loadHospitals();
+    void loadDoctors();
     void loadMyAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.accessToken]);
 
   useEffect(() => {
-    if (!session?.accessToken) return;
-    if (!selectedHospitalId) return;
-    void loadDoctors(selectedHospitalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedHospitalId, session?.accessToken]);
+    if (selectedDoctorId && doctors.length > 0) {
+      const doc = doctors.find(d => d._id === selectedDoctorId);
+      if (doc?.hospitalId) {
+        const hId = typeof doc.hospitalId === 'object' ? (doc.hospitalId as any)._id : doc.hospitalId;
+        setSelectedHospitalId(hId);
+      }
+    }
+  }, [selectedDoctorId, doctors]);
 
   const bookAppointment = async () => {
     setError("");
@@ -207,6 +249,11 @@ export default function PatientDashboard() {
   };
 
   const openChat = async (appointmentId: string) => {
+    if (activeChatAppointmentId === appointmentId) {
+      setActiveChatAppointmentId(null);
+      (window as any).__mediqueue_chat_socket?.disconnect?.();
+      return;
+    }
     setError("");
     setInfo("");
     setActiveChatAppointmentId(appointmentId);
@@ -230,7 +277,6 @@ export default function PatientDashboard() {
       setError(p?.message || "Chat error");
     });
 
-    // store socket on window for quick reuse/cleanup in this MVP
     (window as any).__mediqueue_chat_socket?.disconnect?.();
     (window as any).__mediqueue_chat_socket = socket;
   };
@@ -251,225 +297,289 @@ export default function PatientDashboard() {
     setChatText("");
   };
 
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      sendChat();
+    }
+  };
+
   return (
-    <div className="p-8 space-y-8 bg-background min-h-screen">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Patient Dashboard</h1>
-        <p className="text-muted-foreground">
-          Book appointments, choose payment status (paid/unpaid), cancel with 24-hour rule, and chat after doctor accepts.
-        </p>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
+      {/* Top bar - Glass Navigation */}
+      <div className="w-full bg-white/70 backdrop-blur-xl border-b border-slate-200 px-8 py-6 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-6">
+          <div className="flex items-center gap-5">
+             <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xl border border-slate-100 p-2">
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+             </div>
+             <div>
+                <h1 className="text-3xl font-black tracking-tighter text-[#0F172A] uppercase">MediQueue</h1>
+                {session && (
+                  <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-70 mt-0.5">
+                    Patient Profile: <span className="text-[#1E3A8A] font-black">{session.name}</span>
+                  </p>
+                )}
+             </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/hospitals">
+               <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">Facility Search</Button>
+            </Link>
+            <Link href="/profile">
+               <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">Medical ID</Button>
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {session && (
-        <Card className="rounded-2xl border-muted shadow-lg">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Signed in</CardTitle>
-            <CardDescription className="font-mono break-all">
-              role={session.role} · patientId={session._id} · hospitalId={String(session.hospitalId || "")}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
+      <div className="max-w-7xl mx-auto p-8 space-y-8">
+        {!session?.accessToken && (
+          <div className="text-xs font-black uppercase tracking-widest text-rose-600 bg-rose-50 border border-rose-100 rounded-[20px] p-6 text-center">
+            Authorization required. Redirecting to <Link className="underline text-primary" href="/login">Secure Portal</Link>...
+          </div>
+        )}
+        {error && <div className="text-xs font-black uppercase tracking-widest text-rose-600 bg-rose-50 border border-rose-100 rounded-[20px] p-6">{error}</div>}
+        {info && <div className="text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-[20px] p-6">{info}</div>}
 
-      {!session?.accessToken && (
-        <div className="text-sm text-rose-400">
-          You are not logged in. Go to <a className="underline" href="/login">/login</a>.
-        </div>
-      )}
-
-      {error && (
-        <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
-          {error}
-        </div>
-      )}
-      {info && (
-        <div className="text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-          {info}
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="shadow-xl rounded-2xl border-muted lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Book Appointment</CardTitle>
-            <CardDescription>Select hospital, doctor, date, and payment option.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 mb-4">
-              <div className="space-y-1">
-                <Label>Hospital</Label>
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Book Appointment */}
+          <Card className="rounded-[20px] border border-slate-200 shadow-[0_10px_30px_rgba(15,23,42,0.08)] bg-white overflow-hidden lg:col-span-1">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 p-8">
+              <CardTitle className="text-xl font-black uppercase tracking-tighter text-[#0F172A]">Schedule Encounter</CardTitle>
+              <CardDescription className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Select medical facility and specialist</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Target Facility</Label>
                 <select
-                  className="w-full rounded-xl bg-muted/30 border border-muted px-3 py-2"
+                  className="w-full rounded-[16px] bg-slate-50 border border-slate-200 px-4 py-4 text-sm font-bold text-[#0F172A] outline-none focus:border-accent"
                   value={selectedHospitalId}
                   onChange={(e) => setSelectedHospitalId(e.target.value)}
-                  disabled={!session?.accessToken}
+                  disabled={!session?.accessToken || doctorHospitals.length === 0}
                 >
-                  {hospitals.map((h) => (
-                    <option key={h._id} value={h._id}>
-                      {h.name}
-                    </option>
+                  {doctorHospitals.length === 0 ? (
+                    <option>Awaiting Specialist Selection...</option>
+                  ) : (
+                    doctorHospitals.map((h: Hospital) => <option key={h._id} value={h._id}>{h.name}</option>)
+                  )}
+                </select>
+                {selectedHospitalId && (
+                  <Link href={`/hospitals/${selectedHospitalId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Facility Dossier →</Link>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Specialization Filter</Label>
+                <select
+                  className="w-full rounded-[16px] bg-slate-50 border border-slate-200 px-4 py-4 text-sm font-bold text-[#0F172A] outline-none focus:border-accent"
+                  value={selectedSpecialization}
+                  onChange={handleSpecializationChange}
+                  disabled={!session?.accessToken || availableSpecializations.length === 0}
+                >
+                  <option value="">All Categories</option>
+                  {availableSpecializations.map((spec) => (
+                    <option key={spec} value={spec}>{spec}</option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-1">
-                <Label>Doctor</Label>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Medical Specialist</Label>
                 <select
-                  className="w-full rounded-xl bg-muted/30 border border-muted px-3 py-2"
+                  className="w-full rounded-[16px] bg-slate-50 border border-slate-200 px-4 py-4 text-sm font-bold text-[#0F172A] outline-none focus:border-accent"
                   value={selectedDoctorId}
                   onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  disabled={!session?.accessToken}
+                  disabled={!session?.accessToken || filteredDoctors.length === 0}
                 >
-                  {doctors.map((d) => (
-                    <option key={d._id} value={d._id}>
-                      {d.name} ({d.email})
-                    </option>
-                  ))}
+                  {filteredDoctors.length === 0 ? (
+                    <option>No specialists found</option>
+                  ) : (
+                    filteredDoctors.map((d) => (
+                      <option key={d._id} value={d._id}>
+                        {d.name}{d.specialization ? ` | ${d.specialization}` : ""}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {selectedDoctorId && (
+                  <Link href={`/doctors/${selectedDoctorId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Doctor Dossier →</Link>
+                )}
               </div>
-              <div className="space-y-1">
-                <Label>Date</Label>
-                <Input value={date} onChange={(e) => setDate(e.target.value)} placeholder="YYYY-MM-DD" />
-              </div>
+
               <div className="space-y-2">
-                <Label>Payment option</Label>
-                <div className="flex gap-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Encounter Date</Label>
+                <input
+                  type="date"
+                  value={date}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full rounded-[16px] bg-slate-50 border border-slate-200 px-4 py-4 text-sm font-bold text-[#0F172A] outline-none focus:border-accent"
+                  disabled={!session?.accessToken}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Settlement Protocol</Label>
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("online")}
-                    className={`flex-1 px-3 py-2 text-sm font-semibold rounded-xl border transition-all ${
-                      paymentMethod === "online"
-                        ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
-                        : "bg-muted/50 text-muted-foreground border-muted hover:border-primary/50"
+                    className={`px-4 py-5 text-[10px] font-black uppercase tracking-widest rounded-[16px] border transition-all ${paymentMethod === "online"
+                      ? "bg-[#1E3A8A] text-white border-[#1E3A8A] shadow-lg gold-glow"
+                      : "bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300"
                     }`}
                     disabled={!session?.accessToken}
                   >
-                    Online now (PAID)
+                    💳 Instant Settlement<br />
+                    <span className="opacity-60 mt-1 block">Pre-Paid</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("pay_later")}
-                    className={`flex-1 px-3 py-2 text-sm font-semibold rounded-xl border transition-all ${
-                      paymentMethod === "pay_later"
-                        ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20"
-                        : "bg-muted/50 text-muted-foreground border-muted hover:border-primary/50"
+                    className={`px-4 py-5 text-[10px] font-black uppercase tracking-widest rounded-[16px] border transition-all ${paymentMethod === "pay_later"
+                      ? "bg-[#1E3A8A] text-white border-[#1E3A8A] shadow-lg gold-glow"
+                      : "bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300"
                     }`}
                     disabled={!session?.accessToken}
                   >
-                    Pay after checkup (UNPAID)
+                    💵 Post-Checkup<br />
+                    <span className="opacity-60 mt-1 block">Due on Site</span>
                   </button>
                 </div>
               </div>
-            </div>
 
-            <Button
-              onClick={bookAppointment}
-              className="w-full rounded-xl"
-              size="lg"
-              disabled={!session?.accessToken || loading}
-            >
-              {loading ? "Booking..." : "Book Appointment"}
-            </Button>
-
-            <div className="mt-3 text-xs text-muted-foreground">
-              Cancel rule: cannot cancel within 24 hours. If you paid, cancellation forfeits money (no refund).
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-xl rounded-2xl border-muted lg:col-span-2">
-          <CardHeader>
-            <CardTitle>My Bookings</CardTitle>
-            <CardDescription>Pending needs doctor acceptance before chat opens.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-2 mb-4">
-              <Button variant="outline" className="rounded-xl" onClick={loadMyAppointments} disabled={!session?.accessToken || loading}>
-                Refresh
+              <Button onClick={bookAppointment} className="w-full rounded-[16px] py-8 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 uppercase tracking-widest gold-glow-hover" disabled={!session?.accessToken || loading}>
+                {loading ? "Processing Sequence..." : "Confirm Booking"}
               </Button>
-              <Link href="/profile" className="text-sm text-primary font-semibold hover:underline">
-                My Profile
-              </Link>
-            </div>
 
-            {appointments.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No bookings yet.</div>
-            ) : (
-              <div className="space-y-3">
-                {appointments.map((a) => (
-                  <div key={a._id} className="rounded-2xl border border-muted p-4 bg-muted/10">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="font-semibold">
-                          <Link href={`/doctors/${a.doctorId?._id}`} className="hover:underline">
-                            {a.doctorId?.name || "Doctor"}
-                          </Link>{" "}
-                          <span className="text-muted-foreground">·</span>{" "}
-                          <span className="text-sm text-muted-foreground">{a.hospitalId?.name}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono break-all">
-                          {new Date(a.date).toLocaleString()} · token {a.tokenNumber ?? "-"} · status {a.status} ·{" "}
-                          {a.paymentStatus.toUpperCase()} ({a.paymentMethod})
-                        </div>
-                        {a.forfeited && (
-                          <div className="text-xs text-amber-400 mt-1">Paid booking was cancelled: money forfeited (no refund).</div>
-                        )}
-                      </div>
+              <div className="text-[10px] font-bold text-slate-500 bg-white/5 rounded-2xl p-6 border border-white/5 leading-relaxed">
+                ⚠️ <strong className="text-white">Cancellation Protocol:</strong> Encounter cannot be revoked within 24 hours of window. Pre-paid settlements are non-refundable upon revocation.
+              </div>
+            </CardContent>
+          </Card>
 
-                      <div className="flex gap-2">
-                        {a.status !== "cancelled" && a.status !== "completed" && (
-                          <Button
-                            variant="outline"
-                            className="rounded-xl"
-                            onClick={() => cancelBooking(a._id)}
-                            disabled={loading}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                        {a.status === "confirmed" && (
-                          <Button className="rounded-xl" onClick={() => openChat(a._id)}>
-                            Open Chat
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {activeChatAppointmentId === a._id && (
-                      <div className="mt-4 rounded-xl border border-muted bg-background/40 p-3">
-                        <div className="text-sm font-semibold mb-2">Chat (closes automatically after 24h)</div>
-                        <div className="max-h-56 overflow-auto space-y-2 pr-1">
-                          {messages.length === 0 ? (
-                            <div className="text-xs text-muted-foreground">No messages yet.</div>
-                          ) : (
-                            messages.map((m) => (
-                              <div key={m._id} className="text-sm">
-                                <span className="text-xs text-muted-foreground">
-                                  {m.senderRole} · {new Date(m.createdAt).toLocaleTimeString()}
-                                </span>
-                                <div className="whitespace-pre-wrap">{m.text}</div>
+          {/* My Bookings */}
+          <Card className="rounded-[20px] border border-slate-200 shadow-[0_10px_30px_rgba(15,23,42,0.08)] bg-white overflow-hidden lg:col-span-2">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 p-8 flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-black uppercase tracking-tighter text-[#0F172A]">Active Dossiers</CardTitle>
+                <CardDescription className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Real-time communication with authorized specialists</CardDescription>
+              </div>
+              <Button variant="outline" className="rounded-[14px] border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] font-bold" onClick={loadMyAppointments} disabled={!session?.accessToken || loading}>
+                Sync Feed
+              </Button>
+            </CardHeader>
+            <CardContent className="p-8">
+              {appointments.length === 0 ? (
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-16 text-center opacity-40 italic">System clear. No pending encounters.</div>
+              ) : (
+                <div className="space-y-6">
+                  {appointments.map((a) => (
+                    <div key={a._id} className="rounded-[20px] border border-slate-100 p-6 bg-slate-50/50 hover:bg-white hover:shadow-xl transition-all group border-l-4 border-l-[#1E3A8A]">
+                      <div className="flex flex-wrap items-start justify-between gap-6">
+                        <div className="flex gap-6">
+                           <div className="w-16 h-16 rounded-[14px] bg-[#1E3A8A]/10 flex items-center justify-center text-2xl font-black text-[#1E3A8A] shadow-sm group-hover:scale-110 transition-transform">
+                              {a.doctorId?.name[0]}
+                           </div>
+                           <div className="space-y-1">
+                              <div className="flex items-center gap-3">
+                                <Link href={`/doctors/${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
+                                  Dr. {a.doctorId?.name || "Specialist"}
+                                </Link>
+                                {a.doctorId?.specialization && (
+                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.doctorId.specialization}</span>
+                                )}
                               </div>
-                            ))
+                              <div className="text-xs font-bold text-slate-500">
+                                <Link href={`/hospitals/${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
+                                  🏥 {a.hospitalId?.name}
+                                </Link>
+                              </div>
+                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <CalendarDays className="w-3 h-3" />
+                                {new Date(a.date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+                                {a.tokenNumber && <span className="bg-[#1E3A8A]/10 text-[#1E3A8A] px-2 py-0.5 rounded-md ml-2">Token #{a.tokenNumber}</span>}
+                              </div>
+                              <div className="flex flex-wrap gap-3 mt-3">
+                                <StatusBadge status={a.status} />
+                                <PaymentBadge status={a.paymentStatus} method={a.paymentMethod} />
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="flex gap-3 items-center">
+                          {a.status !== "cancelled" && a.status !== "completed" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-[14px] text-[10px] font-black uppercase text-rose-500 hover:bg-rose-50"
+                              onClick={() => cancelBooking(a._id)}
+                              disabled={loading}
+                            >
+                              Revoke
+                            </Button>
+                          )}
+                          {a.status === "confirmed" && (
+                            <Button
+                              className={`rounded-[16px] px-8 py-6 font-black uppercase text-[10px] tracking-widest transition-all ${activeChatAppointmentId === a._id ? 'bg-[#1E3A8A] text-white shadow-lg' : 'bg-white text-[#1E3A8A] border border-[#1E3A8A] hover:bg-slate-50'}`}
+                              onClick={() => openChat(a._id)}
+                            >
+                              {activeChatAppointmentId === a._id ? "Close Comm" : "Secure Chat"}
+                            </Button>
                           )}
                         </div>
-                        <div className="mt-3 flex gap-2">
-                          <Input
-                            value={chatText}
-                            onChange={(e) => setChatText(e.target.value)}
-                            placeholder="Type a message…"
-                            className="rounded-xl"
-                          />
-                          <Button onClick={sendChat} className="rounded-xl">
-                            Send
-                          </Button>
-                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+                      {/* Inline Chat Panel */}
+                      {activeChatAppointmentId === a._id && (
+                        <div className="mt-8 rounded-[20px] border border-slate-200 bg-white p-6 shadow-xl animate-in fade-in zoom-in-95">
+                          <div className="text-[10px] font-black uppercase text-slate-400 mb-6 flex items-center justify-between tracking-widest opacity-60">
+                            <span>Link established with specialist</span>
+                            <span>Auto-termination in 24H</span>
+                          </div>
+                          <div className="max-h-[300px] overflow-y-auto space-y-4 pr-3 flex flex-col custom-scrollbar">
+                            {messages.length === 0 ? (
+                              <div className="text-[10px] font-black uppercase text-slate-300 text-center py-12 italic tracking-widest">No communication history.</div>
+                            ) : (
+                              messages.map((m) => {
+                                const isMe = m.senderId === session?._id;
+                                return (
+                                  <div key={m._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                                    <div className={`max-w-[80%] rounded-[16px] px-4 py-3 text-sm font-medium ${isMe
+                                      ? "bg-[#1E3A8A] text-white rounded-tr-none shadow-md"
+                                      : "bg-slate-100 text-[#0F172A] rounded-tl-none border border-slate-200"
+                                    }`}>
+                                      {!isMe && <div className="text-[10px] font-black opacity-60 uppercase mb-1 tracking-widest">{m.senderRole}</div>}
+                                      <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>
+                                      <div className={`text-[10px] mt-2 font-black opacity-40 ${isMe ? "text-white/70 text-right" : "text-slate-500"}`}>
+                                        {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                            <div ref={chatEndRef} />
+                          </div>
+                          <div className="mt-8 flex gap-3">
+                            <Input
+                              value={chatText}
+                              onChange={(e) => setChatText(e.target.value)}
+                              onKeyDown={handleChatKeyDown}
+                              placeholder="Transmit message..."
+                              className="rounded-[16px] bg-slate-50 border-slate-200 py-7 px-6 text-sm font-bold placeholder:text-slate-400 outline-none focus:border-accent"
+                            />
+                            <Button onClick={sendChat} className="rounded-[16px] px-10 py-7 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] uppercase tracking-widest text-[10px] gold-glow-hover">Send</Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

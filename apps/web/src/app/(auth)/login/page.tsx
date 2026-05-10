@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function LoginContent() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -16,6 +17,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const message = searchParams.get("message");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +43,19 @@ export default function LoginPage() {
             email: data.email,
             role: data.role,
             hospitalId: data.hospitalId,
+            hospitalIds: data.hospitalIds,
+            isOnboarded: data.isOnboarded,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
           })
         );
 
         // Role-based redirect
+        if (data.role === "doctor" && !data.isOnboarded) {
+          router.push("/doctor/onboarding");
+          return;
+        }
+
         const roleRedirects: Record<string, string> = {
           patient: "/patient",
           doctor: "/doctor",
@@ -64,9 +74,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-[400px] shadow-2xl rounded-2xl border-muted bg-card/50 backdrop-blur-xl">
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden">
+      {/* Background Wallpaper */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url("/wallpaper.png")' }}
+      />
+      <div className="absolute inset-0 z-0 bg-black/20 backdrop-blur-[2px]" />
+
+      <Card className="relative z-10 w-full max-w-[400px] shadow-2xl rounded-[2.5rem] border-white/10 bg-black/40 backdrop-blur-2xl p-2">
         <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <img src="/logo.png" alt="MediQueue Logo" className="w-20 h-20 object-contain" />
+          </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-primary">Welcome Back</CardTitle>
           <CardDescription>
             Enter your credentials to access your dashboard
@@ -74,6 +94,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
+            {message === "onboarding_complete" && (
+              <div className="p-3 text-sm font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                Onboarding complete! Please login. Your account will be accessible once approved by the Super Admin.
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm font-medium text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center">
                 {error}
@@ -115,5 +140,13 @@ export default function LoginPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }
