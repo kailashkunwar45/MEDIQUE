@@ -12,7 +12,7 @@ import BookingModal from "@/components/BookingModal";
 type Session = { _id: string; name: string; role: string; accessToken: string };
 
 type Doctor = {
-  _id: string; name: string; email: string; phone?: string; specialization?: string; bio?: string;
+  _id: string; name: string; email: string; phone?: string; specialization?: string; bio?: string; appointmentFee?: number;
 };
 
 type HospitalData = {
@@ -208,7 +208,7 @@ export default function HospitalDetailPage() {
                             <Link href={`/doctors/${d._id}`}>{d.name}</Link>
                           </div>
                           {d.specialization && (
-                            <div className="text-xs text-muted-foreground">{d.specialization}</div>
+                            <div className="text-xs text-muted-foreground">{d.specialization} {d.appointmentFee ? `· Fee: $${d.appointmentFee}` : ""}</div>
                           )}
                           <div className="text-xs text-muted-foreground">{d.email}</div>
                         </div>

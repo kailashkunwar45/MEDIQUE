@@ -23,6 +23,7 @@ type Doctor = {
   phone?: string;
   specialization?: string;
   bio?: string;
+  appointmentFee?: number;
   hospitalId?: { _id: string; name: string; address: string; contactPhone?: string; contactEmail?: string };
 };
 
@@ -159,11 +160,18 @@ export default function DoctorProfilePage() {
             </div>
             <div className="text-center sm:text-left flex-1">
               <h1 className="text-3xl font-bold tracking-tight">{doctor.name}</h1>
-              {doctor.specialization && (
-                <div className="mt-1 inline-block bg-primary/10 text-primary text-sm font-semibold px-3 py-0.5 rounded-full border border-primary/20">
-                  {doctor.specialization}
-                </div>
-              )}
+               {doctor.specialization && (
+                 <div className="mt-1 inline-flex items-center gap-2">
+                   <div className="bg-primary/10 text-primary text-sm font-semibold px-3 py-0.5 rounded-full border border-primary/20">
+                     {doctor.specialization}
+                   </div>
+                   {doctor.appointmentFee && (
+                     <div className="bg-emerald-500/10 text-emerald-600 text-sm font-semibold px-3 py-0.5 rounded-full border border-emerald-500/20">
+                       Fee: ${doctor.appointmentFee}
+                     </div>
+                   )}
+                 </div>
+               )}
               {doctor.hospitalId && (
                 <p className="text-muted-foreground mt-2 text-sm">
                   🏥{" "}

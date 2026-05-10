@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { User, UserRole } from '../models/user.model';
 import { Appointment, AppointmentStatus } from '../models/appointment.model';
 import { ChatMessage } from '../models/chatMessage.model';
+import { ChatConnection, ChatConnectionStatus } from '../models/chatConnection.model';
 import mongoose from 'mongoose';
 
 let io: SocketIOServer;
@@ -65,11 +66,28 @@ export const initSocket = async (server: Server) => {
       return false;
     };
 
-    const chatWindowOpen = (appt: any) => {
-      if (appt.status !== AppointmentStatus.CONFIRMED) return { ok: false, message: 'Chat is available only after doctor accepts' };
-      const end = new Date(appt.date).getTime() + 24 * 60 * 60 * 1000;
-      if (Date.now() > end) return { ok: false, message: 'Chat session is closed (24h window expired)' };
-      return { ok: true };
+    const chatWindowOpen = async (appt: any) => {
+      // 1. If CONFIRMED, original rule (active during session)
+      if (appt.status === AppointmentStatus.CONFIRMED) {
+        return { ok: true };
+      }
+
+      // 2. If COMPLETED, check for ACTIVE ChatConnection
+      if (appt.status === AppointmentStatus.COMPLETED) {
+        const connection = await ChatConnection.findOne({
+          patientId: appt.patientId,
+          doctorId: appt.doctorId,
+          status: ChatConnectionStatus.ACTIVE
+        });
+        if (connection) return { ok: true };
+        return { ok: false, message: 'Session concluded. Request chat reconnection to continue.' };
+      }
+
+      if (appt.status === AppointmentStatus.CANCELLED || appt.status === AppointmentStatus.DECLINED) {
+        return { ok: false, message: 'Chat is disabled for cancelled or declined appointments.' };
+      }
+
+      return { ok: false, message: 'Chat is available only after doctor accepts the encounter.' };
     };
 
     socket.on('joinChat', async (data: { appointmentId: string; token: string }) => {
@@ -83,11 +101,15 @@ export const initSocket = async (server: Server) => {
       if (!appt) return socket.emit('chatError', { message: 'Appointment not found' });
       if (!canAccessChat(user, appt)) return socket.emit('chatError', { message: 'Not authorized for this chat' });
 
-      const window = chatWindowOpen(appt);
-      if (!window.ok) return socket.emit('chatError', { message: window.message });
+      const window = await chatWindowOpen(appt);
+      if (!window.ok) {
+        console.log(`chatError (joinChat): ${window.message} for user ${user.name}`);
+        return socket.emit('chatError', { message: window.message });
+      }
 
       const room = `chat_${data.appointmentId}`;
       socket.join(room);
+      console.log(`Socket ${socket.id} (${user.name}) joined room ${room}`);
       socket.emit('chatJoined', { appointmentId: data.appointmentId });
     });
 
@@ -104,8 +126,11 @@ export const initSocket = async (server: Server) => {
       const appt = await Appointment.findById(data.appointmentId).lean();
       if (!appt) return socket.emit('chatError', { message: 'Appointment not found' });
       if (!canAccessChat(user, appt)) return socket.emit('chatError', { message: 'Not authorized for this chat' });
-      const window = chatWindowOpen(appt);
-      if (!window.ok) return socket.emit('chatError', { message: window.message });
+      const window = await chatWindowOpen(appt);
+      if (!window.ok) {
+        console.log(`chatError (sendMessage): ${window.message} for user ${user.name}`);
+        return socket.emit('chatError', { message: window.message });
+      }
 
       const msg = await ChatMessage.create({
         appointmentId: appt._id,
@@ -115,14 +140,30 @@ export const initSocket = async (server: Server) => {
         text: data.text.trim(),
       });
 
-      io.to(`chat_${data.appointmentId}`).emit('message', {
+      console.log(`Message sent in room chat_${data.appointmentId} by ${user.name}`);
+
+      const messagePayload = {
         _id: msg._id,
         appointmentId: data.appointmentId,
         senderId: user._id,
         senderRole: user.role,
         text: msg.text,
         createdAt: msg.createdAt,
-      });
+      };
+
+      io.to(`chat_${data.appointmentId}`).emit('message', messagePayload);
+
+      // Notify the recipient globally for unread counts
+      const recipientId = String(user._id) === String(appt.patientId) ? appt.doctorId : appt.patientId;
+      io.to(`user_${recipientId}`).emit('messageNotification', messagePayload);
+    });
+
+    socket.on('registerUser', async (data: { token: string }) => {
+      const user = await getUserFromToken(data?.token);
+      if (user) {
+        socket.join(`user_${user._id}`);
+        console.log(`Socket ${socket.id} (${user.name}) joined global user room user_${user._id}`);
+      }
     });
   });
 

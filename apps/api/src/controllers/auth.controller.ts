@@ -52,7 +52,12 @@ const ensureHospitalId = async (
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role: rawRole, hospitalId: rawHospitalId, phone } = req.body;
+    let { name, email, password, role: rawRole, hospitalId: rawHospitalId, phone } = req.body;
+    if (typeof name === 'string') name = name.trim();
+    if (typeof email === 'string') email = email.trim();
+    if (typeof password === 'string') password = password.trim();
+    if (typeof phone === 'string') phone = phone.trim();
+
     const role = normalizeRole(rawRole);
     const hospitalId = await ensureHospitalId(role, rawHospitalId);
 
@@ -93,7 +98,9 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    if (typeof email === 'string') email = email.trim();
+    if (typeof password === 'string') password = password.trim();
 
     const user = await User.findOne({ email }).select('+password');
 

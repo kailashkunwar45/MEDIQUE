@@ -14,7 +14,10 @@ import {
   PieChart as ChartIcon, 
   AlertCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Zap,
+  Clock,
+  MessageSquare
 } from "lucide-react";
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
@@ -43,6 +46,12 @@ type Doctor = {
   isApprovedBySuperAdmin: boolean;
   isBanned: boolean;
   hospitalIds: { name: string }[];
+  appointmentFee?: number;
+  pendingFeeUpdate?: {
+    newFee: number;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+  };
 };
 
 export default function SuperAdminDashboard() {
@@ -51,10 +60,19 @@ export default function SuperAdminDashboard() {
   const [approvedHospitals, setApprovedHospitals] = useState<Hospital[]>([]);
   const [pendingDoctors, setPendingDoctors] = useState<Doctor[]>([]);
   const [approvedDoctors, setApprovedDoctors] = useState<Doctor[]>([]);
+  const [feeRequests, setFeeRequests] = useState<Doctor[]>([]);
   const [viewingDoctor, setViewingDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [rejectingFeeFor, setRejectingFeeFor] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const router = useRouter();
+
+  const logout = () => {
+    localStorage.removeItem("mediqueue_session");
+    window.location.href = "/login";
+  };
 
   const authFetch = async (path: string, init?: RequestInit) => {
     const session = JSON.parse(localStorage.getItem("mediqueue_session") || "{}");
@@ -72,12 +90,13 @@ export default function SuperAdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsData, pHospitals, aHospitals, pDoctors, aDoctors] = await Promise.all([
+      const [statsData, pHospitals, aHospitals, pDoctors, aDoctors, fRequests] = await Promise.all([
         authFetch("/api/super-admin/stats"),
         authFetch("/api/super-admin/hospitals/pending"),
         authFetch("/api/super-admin/hospitals/approved"),
         authFetch("/api/super-admin/doctors/pending"),
         authFetch("/api/super-admin/doctors/approved"),
+        authFetch("/api/superadmin/doctors/fees/pending"),
       ]);
 
       setStats(statsData);
@@ -85,6 +104,7 @@ export default function SuperAdminDashboard() {
       setApprovedHospitals(aHospitals || []);
       setPendingDoctors(pDoctors || []);
       setApprovedDoctors(aDoctors || []);
+      setFeeRequests(fRequests || []);
     } catch (e) {
       setError("Failed to sync global data");
     } finally {
@@ -154,14 +174,45 @@ export default function SuperAdminDashboard() {
     } catch (e) { setError("Ban action failed"); }
   };
 
+  const handleFeeApproval = async (doctorId: string, status: 'approved' | 'rejected', reason?: string) => {
+    if (status === 'rejected' && !reason) {
+      // Start the inline rejection flow instead
+      setRejectingFeeFor(doctorId);
+      setRejectReason("");
+      return;
+    }
+    try {
+      setError(""); setInfo("");
+      await authFetch("/api/superadmin/doctors/fees/approve", {
+        method: "POST",
+        body: JSON.stringify({ doctorId, status, reason }),
+      });
+      setInfo(`Fee update ${status} and doctor notified.`);
+      setRejectingFeeFor(null);
+      setRejectReason("");
+      loadData();
+    } catch (e) { setError("Fee action failed"); }
+  };
+
+  const simulateBulkUpdate = async () => {
+    setLoading(true);
+    try {
+      await authFetch('/api/superadmin/doctors/fees/bulk-request', {
+        method: 'POST',
+        body: JSON.stringify({ newFee: 150 })
+      });
+      setInfo("Global fee review simulation initiated for all specialists.");
+      loadData();
+    } catch (e: any) { setError(e.message || "Bulk update failed"); }
+    finally { setLoading(false); }
+  };
+
   const COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#6B7280'];
   const appointmentPieData = stats?.appointments?.mix ? 
     Object.entries(stats.appointments.mix).map(([name, value]) => ({ name, value })) : [];
 
   return (
-  return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      {/* GLOBAL HEADER - Luxury Navigation */}
       <div className="w-full bg-white/70 backdrop-blur-xl border-b border-slate-200 px-8 py-6 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-5">
@@ -176,11 +227,14 @@ export default function SuperAdminDashboard() {
              </div>
           </div>
           <div className="flex items-center gap-3">
-             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm" onClick={loadData}>Sync Global State</Button>
-             <Link href="/profile">
-                <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">System Command</Button>
-             </Link>
-          </div>
+              <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm" onClick={loadData}>Sync Global State</Button>
+              <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
+                Log Out
+              </Button>
+              <Link href="/profile">
+                 <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">System Command</Button>
+              </Link>
+           </div>
         </div>
       </div>
 
@@ -198,9 +252,11 @@ export default function SuperAdminDashboard() {
               <TabsTrigger value="doctors" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all">
                  <Stethoscope className="w-4 h-4 mr-2" /> Specialists
               </TabsTrigger>
+              <TabsTrigger value="fees" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all">
+                 <Zap className="w-4 h-4 mr-2" /> Fee Requests {feeRequests.length > 0 && `[${feeRequests.length}]`}
+              </TabsTrigger>
            </TabsList>
 
-           {/* STATS CONTENT */}
            <TabsContent value="stats" className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  {[
@@ -256,9 +312,7 @@ export default function SuperAdminDashboard() {
               </div>
            </TabsContent>
 
-           {/* HOSPITALS CONTENT */}
            <TabsContent value="hospitals" className="space-y-10">
-              {/* PENDING HOSPITALS */}
               <div className="space-y-6">
                  <div className="flex items-center gap-3 px-2 text-amber-600">
                     <AlertCircle className="w-5 h-5" />
@@ -289,7 +343,6 @@ export default function SuperAdminDashboard() {
                  )}
               </div>
 
-              {/* VERIFIED NETWORK */}
               <div className="space-y-6">
                  <div className="flex items-center gap-3 px-2 text-[#10B981]">
                     <CheckCircle2 className="w-5 h-5" />
@@ -321,9 +374,7 @@ export default function SuperAdminDashboard() {
               </div>
            </TabsContent>
 
-           {/* DOCTORS CONTENT */}
            <TabsContent value="doctors" className="space-y-10">
-              {/* PENDING DOCTORS */}
               <div className="space-y-6">
                  <div className="flex items-center gap-3 px-2 text-amber-600">
                     <AlertCircle className="w-5 h-5" />
@@ -359,7 +410,6 @@ export default function SuperAdminDashboard() {
                      </div>
                   )}
 
-                  {/* DOCTOR DETAILS MODAL */}
                   {viewingDoctor && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
                        <Card className="w-full max-w-2xl rounded-3xl border-none shadow-2xl bg-white overflow-hidden animate-in fade-in zoom-in duration-300">
@@ -422,7 +472,6 @@ export default function SuperAdminDashboard() {
                   )}
               </div>
 
-              {/* APPROVED DOCTORS */}
               <div className="space-y-4">
                  <div className="flex items-center gap-3 px-2 text-emerald-600">
                     <CheckCircle2 className="w-5 h-5" />
@@ -456,6 +505,144 @@ export default function SuperAdminDashboard() {
                  </div>
               </div>
            </TabsContent>
+
+           <TabsContent value="fees" className="space-y-8">
+                <div className="flex items-center justify-between px-2">
+                   <div className="flex items-center gap-3 text-[#1E3A8A]">
+                      <Zap className="w-5 h-5" />
+                      <h3 className="text-xl font-black uppercase tracking-tight">Financial Protocol Authorizations</h3>
+                   </div>
+                   <Button variant="outline" className="rounded-[14px] px-6 py-4 font-black border-[#D4AF37]/30 text-[#1E3A8A] hover:bg-[#D4AF37]/5 transition-all shadow-sm flex items-center gap-2" onClick={simulateBulkUpdate}>
+                      <ShieldCheck className="w-4 h-4 text-[#D4AF37]" /> Simulate Global Fee Review ($150)
+                   </Button>
+                </div>
+
+                {/* Pending Requests */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Pending Authorization</p>
+                  </div>
+                  {feeRequests.filter(d => d.pendingFeeUpdate?.status === 'pending').length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-[20px] border border-dashed border-slate-200 text-slate-400 font-black uppercase tracking-widest text-[10px]">No pending fee adjustments.</div>
+                  ) : (
+                    <div className="grid gap-6">
+                      {feeRequests.filter(d => d.pendingFeeUpdate?.status === 'pending').map(d => (
+                        <Card key={d._id} className="rounded-[20px] border border-amber-100 shadow-[0_10px_40px_rgba(15,23,42,0.06)] bg-white overflow-hidden">
+                          <div className="flex items-start justify-between flex-wrap gap-6 p-8">
+                            <div className="flex items-center gap-6">
+                              <div className="w-16 h-16 rounded-[18px] bg-[#1E3A8A]/5 flex items-center justify-center text-2xl font-black text-[#1E3A8A] uppercase border border-[#1E3A8A]/10">
+                                {d.name[0]}
+                              </div>
+                              <div>
+                                <p className="text-xl font-black text-[#0F172A] tracking-tight uppercase">Dr. {d.name}</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{d.specialization}</p>
+                                <div className="mt-4 flex items-center gap-6">
+                                  <div className="space-y-0.5">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Current Fee</p>
+                                    <p className="text-lg font-black text-slate-400">${d.appointmentFee || 0}</p>
+                                  </div>
+                                  <div className="w-px h-8 bg-slate-100" />
+                                  <div className="space-y-0.5">
+                                    <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Requested Fee</p>
+                                    <p className="text-2xl font-black text-amber-600">${d.pendingFeeUpdate?.newFee}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Requested On</p>
+                                    <p className="text-[11px] font-black text-slate-500">{d.pendingFeeUpdate?.requestedAt ? new Date(d.pendingFeeUpdate.requestedAt).toLocaleDateString() : 'N/A'}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-3 min-w-[200px]">
+                              {rejectingFeeFor === d._id ? (
+                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-rose-500">Rejection Reason (Required)</p>
+                                  <textarea
+                                    className="w-full text-xs font-bold border border-rose-200 rounded-[14px] p-3 bg-rose-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-300 resize-none"
+                                    placeholder="Provide a clear reason for declining this request..."
+                                    rows={3}
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button variant="ghost" className="flex-1 rounded-[12px] font-black uppercase text-[9px] tracking-widest text-slate-400 h-10" onClick={() => { setRejectingFeeFor(null); setRejectReason(''); }}>Cancel</Button>
+                                    <Button
+                                      className="flex-1 rounded-[12px] bg-rose-500 hover:bg-rose-600 text-white font-black uppercase text-[9px] tracking-widest h-10 shadow-lg"
+                                      disabled={!rejectReason.trim()}
+                                      onClick={() => handleFeeApproval(d._id, 'rejected', rejectReason.trim())}
+                                    >Confirm Rejection</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <Button variant="ghost" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-rose-500 h-12 px-6 border border-rose-100 hover:bg-rose-50" onClick={() => setRejectingFeeFor(d._id)}>Decline Request</Button>
+                                  <Button className="rounded-[14px] font-black uppercase text-[10px] tracking-widest bg-[#1E3A8A] hover:bg-[#2563EB] text-white h-12 shadow-xl gold-glow-hover" onClick={() => handleFeeApproval(d._id, 'approved', undefined)}>Approve Fee Change</Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Decision History */}
+                {feeRequests.filter(d => d.pendingFeeUpdate?.status !== 'pending').length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 px-1 pt-4 border-t border-slate-100">
+                      <MessageSquare className="w-4 h-4 text-slate-400" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Decision History</p>
+                    </div>
+                    <div className="grid gap-4">
+                      {feeRequests.filter(d => d.pendingFeeUpdate?.status !== 'pending').map(d => {
+                        const isApproved = d.pendingFeeUpdate?.status === 'approved';
+                        return (
+                          <div key={d._id} className={`rounded-[18px] border p-6 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between ${
+                            isApproved ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'
+                          }`}>
+                            <div className="flex items-center gap-5">
+                              <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center text-xl font-black uppercase border ${
+                                isApproved ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'
+                              }`}>{d.name[0]}</div>
+                              <div>
+                                <p className="font-black text-[#0F172A] uppercase tracking-tight">Dr. {d.name}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{d.specialization}</p>
+                                <div className="flex items-center gap-4 mt-2">
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Old: ${d.appointmentFee || 0}</span>
+                                  <span className="text-slate-300">→</span>
+                                  <span className={`text-[11px] font-black uppercase tracking-widest ${
+                                    isApproved ? 'text-emerald-600' : 'text-rose-500 line-through'
+                                  }`}>${d.pendingFeeUpdate?.newFee}</span>
+                                </div>
+                                {d.pendingFeeUpdate?.reason && (
+                                  <div className={`mt-2 flex items-start gap-2 p-2 rounded-[10px] border ${
+                                    isApproved ? 'bg-emerald-100/50 border-emerald-200' : 'bg-rose-100/50 border-rose-200'
+                                  }`}>
+                                    <MessageSquare className={`w-3 h-3 mt-0.5 flex-shrink-0 ${isApproved ? 'text-emerald-600' : 'text-rose-500'}`} />
+                                    <p className={`text-[9px] font-bold italic ${
+                                      isApproved ? 'text-emerald-700' : 'text-rose-600'
+                                    }`}>"{d.pendingFeeUpdate.reason}"</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-black uppercase text-[9px] tracking-widest border ${
+                              isApproved
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-100 text-rose-600 border-rose-200'
+                            }`}>
+                              {isApproved ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                              {d.pendingFeeUpdate?.status}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+             </TabsContent>
         </Tabs>
       </div>
     </div>

@@ -18,6 +18,21 @@ export const bookAppointment = async (req: AuthRequest, res: Response) => {
 
     // Find or create queue for the doctor on that date
     const appointmentDate = new Date(date).setHours(0, 0, 0, 0);
+
+    // Check if patient already has an appointment with this doctor within 24 hours (same day)
+    const existingPatientBooking = await Appointment.findOne({
+      patientId,
+      doctorId,
+      date: {
+        $gte: new Date(appointmentDate),
+        $lt: new Date(new Date(appointmentDate).getTime() + 24 * 60 * 60 * 1000),
+      },
+      status: { $ne: AppointmentStatus.CANCELLED },
+    });
+
+    if (existingPatientBooking) {
+      return res.status(400).json({ message: 'You cannot book the same doctor more than once within 24 hours.' });
+    }
     
     let queue = await Queue.findOne({
       doctorId,
@@ -70,7 +85,7 @@ export const bookAppointment = async (req: AuthRequest, res: Response) => {
 export const getPatientAppointments = async (req: AuthRequest, res: Response) => {
   try {
     const patientId = req.user?._id;
-    const appointments = await Appointment.find({ patientId })
+    const appointments = await Appointment.find({ patientId, patientDeleted: { $ne: true } })
       .populate('doctorId', 'name email phone')
       .populate('hospitalId', 'name address contactEmail contactPhone')
       .sort({ date: -1 });
@@ -99,14 +114,7 @@ export const cancelAppointment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Completed appointment cannot be cancelled' });
     }
 
-    const now = Date.now();
-    const apptTime = new Date(appointment.date).getTime();
-    const hoursDiff = (apptTime - now) / (1000 * 60 * 60);
-
-    // Rule: cannot cancel within 24 hours
-    if (hoursDiff <= 24) {
-      return res.status(400).json({ message: 'Cannot cancel within 24 hours of appointment time' });
-    }
+    // Rule: can cancel anytime
 
     appointment.status = AppointmentStatus.CANCELLED;
     appointment.cancelledAt = new Date();
@@ -154,7 +162,7 @@ export const acceptAppointment = async (req: AuthRequest, res: Response) => {
 export const getDoctorAppointments = async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?._id;
-    const appointments = await Appointment.find({ doctorId })
+    const appointments = await Appointment.find({ doctorId, doctorDeleted: { $ne: true } })
       .populate('patientId', 'name email phone')
       .populate('hospitalId', 'name address contactEmail contactPhone')
       .sort({ date: -1 });
@@ -180,8 +188,12 @@ export const completeAppointment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Only confirmed appointments can be completed' });
     }
 
+    if (!doctorNotes || doctorNotes.trim().length < 10) {
+      return res.status(400).json({ message: 'Detailed clinical notes (at least 10 characters) are mandatory to conclude the encounter.' });
+    }
+
     appointment.status = AppointmentStatus.COMPLETED;
-    if (doctorNotes) appointment.doctorNotes = doctorNotes;
+    appointment.doctorNotes = doctorNotes;
     await appointment.save();
 
     res.json({ message: 'Appointment completed', appointment });
@@ -199,19 +211,17 @@ export const declineAppointment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Valid appointmentId is required' });
     }
 
-    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId });
-    if (!appointment) return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+    const updatedAppointment = await Appointment.findOneAndUpdate(
+      { _id: appointmentId, doctorId },
+      {
+        status: AppointmentStatus.DECLINED,
+        declinedAt: new Date(),
+        declineReason: reason
+      },
+      { new: true }
+    );
 
-    if (appointment.status !== AppointmentStatus.PENDING) {
-      return res.status(400).json({ message: 'Only pending appointments can be declined' });
-    }
-
-    appointment.status = AppointmentStatus.DECLINED;
-    appointment.declinedAt = new Date();
-    appointment.declineReason = reason;
-    await appointment.save();
-
-    res.json({ message: 'Appointment declined', appointment });
+    res.json({ message: 'Appointment declined', appointment: updatedAppointment });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -269,6 +279,75 @@ export const getAppointmentById = async (req: AuthRequest, res: Response) => {
     }
 
     res.json(appointment);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const togglePaymentStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    const doctorId = req.user?._id;
+    const appointmentId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(appointmentId)) {
+      return res.status(400).json({ message: 'Invalid appointment ID' });
+    }
+
+    const appointment = await Appointment.findOne({ _id: appointmentId, doctorId });
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+
+    if (appointment.paymentMethod !== 'pay_later') {
+      return res.status(400).json({ message: 'Can only toggle payment status for onsite (pay_later) appointments' });
+    }
+
+    const newStatus = appointment.paymentStatus === 'paid' ? 'unpaid' : 'paid';
+    const updatedAppointment = await Appointment.findOneAndUpdate(
+      { _id: appointmentId, doctorId },
+      { paymentStatus: newStatus },
+      { new: true }
+    );
+
+    res.json({ message: `Payment status changed to ${newStatus}`, appointment: updatedAppointment });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteHistoryAppointments = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const role = req.user?.role;
+    const { appointmentIds } = req.body;
+
+    if (!Array.isArray(appointmentIds) || appointmentIds.length === 0) {
+      return res.status(400).json({ message: 'appointmentIds array is required' });
+    }
+
+    // Ensure they are valid ObjectIds
+    const validIds = appointmentIds.filter(id => mongoose.Types.ObjectId.isValid(String(id)));
+    if (validIds.length === 0) {
+      return res.status(400).json({ message: 'No valid appointment IDs provided' });
+    }
+
+    const updateQuery: any = {};
+    const matchQuery: any = { 
+      _id: { $in: validIds },
+      status: { $in: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.DECLINED] }
+    };
+
+    if (role === 'patient') {
+      matchQuery.patientId = userId;
+      updateQuery.patientDeleted = true;
+    } else if (role === 'doctor') {
+      matchQuery.doctorId = userId;
+      updateQuery.doctorDeleted = true;
+    } else {
+      return res.status(403).json({ message: 'Unauthorized role for this action' });
+    }
+
+    const result = await Appointment.updateMany(matchQuery, { $set: updateQuery });
+
+    res.json({ message: `${result.modifiedCount} appointments deleted from history.` });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

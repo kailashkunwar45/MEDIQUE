@@ -9,6 +9,8 @@ import {
   declineAppointment,
   changeAppointmentHospital,
   getAppointmentById,
+  togglePaymentStatus,
+  deleteHistoryAppointments,
 } from '../controllers/appointment.controller';
 import { protect, authorize } from '../middlewares/auth.middleware';
 import { UserRole } from '../models/user.model';
@@ -23,6 +25,8 @@ router.post('/accept', protect, authorize(UserRole.DOCTOR), acceptAppointment);
 router.post('/complete', protect, authorize(UserRole.DOCTOR), completeAppointment);
 router.post('/decline', protect, authorize(UserRole.DOCTOR), declineAppointment);
 router.put('/change-hospital', protect, authorize(UserRole.DOCTOR), changeAppointmentHospital);
+router.put('/:id/payment-status', protect, authorize(UserRole.DOCTOR), togglePaymentStatus);
+router.delete('/history', protect, deleteHistoryAppointments);
 router.get('/:id', protect, getAppointmentById);
 
 export default router;

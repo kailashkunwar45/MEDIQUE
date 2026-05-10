@@ -24,6 +24,7 @@ export default function DoctorOnboardingPage() {
     experienceYears: "",
     previousWork: "",
     hospitalIds: [] as string[],
+    appointmentFee: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -171,6 +172,16 @@ export default function DoctorOnboardingPage() {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label>Appointment Fee (Charge for one encounter in USD)</Label>
+                <Input
+                  type="number"
+                  placeholder="50"
+                  value={formData.appointmentFee}
+                  onChange={(e) => setFormData({ ...formData, appointmentFee: e.target.value })}
+                  className="rounded-xl bg-muted/30 border-primary/20 focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Previous Working Experience (Where have you worked?)</Label>
                 <textarea
                   placeholder="City Hospital, Private Clinic, etc."
@@ -225,6 +236,10 @@ export default function DoctorOnboardingPage() {
                 <div className="flex justify-between border-b border-muted pb-1">
                   <span className="text-muted-foreground">Hospitals</span>
                   <span className="font-bold">{formData.hospitalIds.length} Selected</span>
+                </div>
+                <div className="flex justify-between border-b border-muted pb-1">
+                  <span className="text-muted-foreground">Appointment Fee</span>
+                  <span className="font-bold text-primary">${formData.appointmentFee}</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground text-center italic">

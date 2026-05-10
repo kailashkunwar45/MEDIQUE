@@ -18,6 +18,7 @@ type Doctor = {
   _id: string;
   name: string;
   specialization?: string;
+  appointmentFee?: number;
   hospitalId?: string | { _id: string };
   hospitalIds?: string[];
 };
@@ -174,6 +175,7 @@ export default function BookingModal({
                 >
                   {d.name}
                   {d.specialization && <span className="text-xs text-muted-foreground ml-2">· {d.specialization}</span>}
+                  {d.appointmentFee && <span className="text-xs text-emerald-600 font-bold ml-2">(${d.appointmentFee})</span>}
                 </button>
               ))}
             </div>
@@ -194,6 +196,11 @@ export default function BookingModal({
             <div><span className="text-muted-foreground text-xs">Hospital: </span><strong>{preHospitalName}</strong></div>
             {selectedSpec && <div><span className="text-muted-foreground text-xs">Specialization: </span><strong>{selectedSpec}</strong></div>}
             <div><span className="text-muted-foreground text-xs">Doctor: </span><strong>{selectedDoctorName || preDoctorName}</strong></div>
+            {doctors.find(d => d._id === selectedDoctorId)?.appointmentFee && (
+               <div className="pt-1 text-[#1E3A8A] font-black uppercase text-[10px] tracking-widest">
+                 Consultation Fee: ${doctors.find(d => d._id === selectedDoctorId)?.appointmentFee}
+               </div>
+             )}
           </div>
 
           <div className="space-y-1">

@@ -26,6 +26,8 @@ export interface IAppointment extends Document {
   hospitalLocked: boolean; // Cannot change hospital after acceptance
   doctorNotes?: string; // Memory purpose comments on patient health
   cancelReason?: string;
+  patientDeleted?: boolean;
+  doctorDeleted?: boolean;
 }
 
 const appointmentSchema = new Schema<IAppointment>(
@@ -59,6 +61,8 @@ const appointmentSchema = new Schema<IAppointment>(
     hospitalLocked: { type: Boolean, default: false },
     doctorNotes: { type: String },
     cancelReason: { type: String },
+    patientDeleted: { type: Boolean, default: false },
+    doctorDeleted: { type: Boolean, default: false },
   },
   {
     timestamps: true,

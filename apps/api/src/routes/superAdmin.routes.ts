@@ -11,7 +11,10 @@ import {
   removeHospital,
   banUser,
   banHospital,
-  cancelAppointmentGlobal
+  cancelAppointmentGlobal,
+  getPendingFeeUpdates,
+  approveFeeUpdate,
+  bulkUpdateFees
 } from '../controllers/superAdmin.controller';
 import { protect, authorize } from '../middlewares/auth.middleware';
 import { UserRole } from '../models/user.model';
@@ -35,5 +38,8 @@ router.delete('/doctors/:doctorId', removeDoctor);
 router.post('/doctors/ban', banUser);
 
 router.post('/appointments/cancel', cancelAppointmentGlobal);
+router.get('/doctors/fees/pending', getPendingFeeUpdates);
+router.post('/doctors/fees/approve', approveFeeUpdate);
+router.post('/doctors/fees/bulk-request', bulkUpdateFees);
 
 export default router;

@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Link from "next/link";
-import { io, Socket } from "socket.io-client";
-import { LayoutDashboard, CalendarDays } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Bell, Trash2 } from "lucide-react";
 import { authFetch } from "@/lib/authFetch";
 
 type Session = {
@@ -35,6 +32,7 @@ type Doctor = {
   phone?: string;
   specialization?: string;
   hospitalId?: string;
+  appointmentFee?: number;
 };
 
 type Appointment = {
@@ -42,12 +40,13 @@ type Appointment = {
   doctorId: Doctor;
   hospitalId: Hospital;
   date: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "cancelled" | "declined";
   paymentMethod: "online" | "pay_later";
   paymentStatus: "paid" | "unpaid";
   tokenNumber?: number;
   cancelledAt?: string;
   forfeited?: boolean;
+  doctorNotes?: string;
 };
 
 type ChatMessage = {
@@ -79,13 +78,13 @@ function StatusBadge({ status }: { status: Appointment["status"] }) {
   );
 }
 
-function PaymentBadge({ status, method }: { status: "paid" | "unpaid"; method: string }) {
+function PaymentBadge({ status, method, amount }: { status: "paid" | "unpaid"; method: string; amount?: number }) {
   return (
     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${status === "paid"
       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
       : "bg-amber-500/10 text-amber-400 border-amber-500/20"
     }`}>
-      {status === "paid" ? "✓ PAID" : "⏳ UNPAID"} · {method === "online" ? "Online" : "Cash on Checkup"}
+      {status === "paid" ? "✓ PAID" : "⏳ UNPAID"} {amount ? `($${amount})` : ""} · {method === "online" ? "Online" : "Cash on Checkup"}
     </span>
   );
 }
@@ -132,12 +131,49 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [info, setInfo] = useState<string>("");
+  const [currentView, setCurrentView] = useState<"active" | "history">("active");
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const globalSocketRef = useRef<Socket | null>(null);
+  const activeChatRef = useRef<string | null>(null);
 
-  useEffect(() => { setSession(getSession()); }, []);
+  useEffect(() => {
+    activeChatRef.current = activeChatAppointmentId;
+    if (activeChatAppointmentId) {
+      setUnreadCounts(prev => ({ ...prev, [activeChatAppointmentId]: 0 }));
+    }
+  }, [activeChatAppointmentId]);
 
+  useEffect(() => { 
+    const s = getSession();
+    if (s && s.role !== "patient") {
+      window.location.href = `/${s.role === 'hospital_admin' ? 'hospital-admin' : s.role === 'super_admin' ? 'super-admin' : s.role}`;
+      return;
+    }
+    setSession(s); 
 
+    if (s?.accessToken) {
+      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+      globalSocketRef.current = socket;
+      socket.emit("registerUser", { token: s.accessToken });
+      
+      socket.on("messageNotification", (msg: ChatMessage) => {
+        if (activeChatRef.current !== msg.appointmentId) {
+          setUnreadCounts(prev => ({
+            ...prev,
+            [msg.appointmentId]: (prev[msg.appointmentId] || 0) + 1
+          }));
+        }
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    }
+  }, []);
   const loadHospitals = async () => {
     setError("");
     setInfo("");
@@ -168,6 +204,11 @@ export default function PatientDashboard() {
     } catch (e: any) {
       setError(e?.message || "Failed to load doctors");
     }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("mediqueue_session");
+    window.location.href = "/login";
   };
 
   const loadMyAppointments = async () => {
@@ -303,6 +344,51 @@ export default function PatientDashboard() {
     }
   };
 
+  const requestChat = async (doctorId: string) => {
+    setError(""); setInfo(""); setLoading(true);
+    try {
+      await authFetch("/api/chat/request", {
+        method: "POST",
+        body: JSON.stringify({ doctorId }),
+      });
+      setInfo("Chat request sent to the doctor. You will be notified when they accept.");
+    } catch (e: any) {
+      setError(e?.message || "Failed to send chat request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleHistorySelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedHistoryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const deleteHistory = async (idsToDelete?: string[]) => {
+    const ids = idsToDelete || selectedHistoryIds;
+    if (ids.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${ids.length} appointment(s) from your history?`)) return;
+    
+    setError(""); setInfo(""); setLoading(true);
+    try {
+      await authFetch("/api/appointments/history", {
+        method: "DELETE",
+        body: JSON.stringify({ appointmentIds: ids })
+      });
+      setInfo(`Successfully deleted ${ids.length} historical record(s).`);
+      setSelectedHistoryIds([]);
+      setExpandedHistoryId(null);
+      await loadMyAppointments();
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete history");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const activeAppointments = appointments.filter(a => a.status === "pending" || a.status === "confirmed");
+  const historyAppointments = appointments.filter(a => a.status === "completed" || a.status === "cancelled" || a.status === "declined");
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
       {/* Top bar - Glass Navigation */}
@@ -325,6 +411,30 @@ export default function PatientDashboard() {
             <Link href="/hospitals">
                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">Facility Search</Button>
             </Link>
+            {currentView === "history" && selectedHistoryIds.length > 0 && (
+              <Button 
+                variant="destructive" 
+                className="rounded-[14px] px-6 py-6 font-bold transition-all shadow-sm shadow-rose-200"
+                onClick={(e) => { e.stopPropagation(); deleteHistory(); }}
+                disabled={loading}
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Selected ({selectedHistoryIds.length})
+              </Button>
+            )}
+            <Button 
+              variant={currentView === "history" ? "default" : "outline"} 
+              className={`rounded-[14px] px-6 py-6 font-bold transition-all shadow-sm ${currentView === "history" ? 'bg-[#1E3A8A] text-white' : 'border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A]'}`}
+              onClick={() => setCurrentView(currentView === "active" ? "history" : "active")}
+            >
+              {currentView === "active" ? "Appointment History" : "Back to Active"}
+            </Button>
+            <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm" onClick={loadMyAppointments} disabled={loading}>
+              {loading ? "Syncing Logic..." : "Sync Feed"}
+            </Button>
+            <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
+              Log Out
+            </Button>
+
             <Link href="/profile">
                <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">Medical ID</Button>
             </Link>
@@ -394,11 +504,11 @@ export default function PatientDashboard() {
                   {filteredDoctors.length === 0 ? (
                     <option>No specialists found</option>
                   ) : (
-                    filteredDoctors.map((d) => (
-                      <option key={d._id} value={d._id}>
-                        {d.name}{d.specialization ? ` | ${d.specialization}` : ""}
-                      </option>
-                    ))
+                     filteredDoctors.map((d) => (
+                       <option key={d._id} value={d._id}>
+                         {d.name}{d.specialization ? ` | ${d.specialization}` : ""} {d.appointmentFee ? ` ($${d.appointmentFee})` : ""}
+                       </option>
+                     ))
                   )}
                 </select>
                 {selectedDoctorId && (
@@ -453,7 +563,7 @@ export default function PatientDashboard() {
               </Button>
 
               <div className="text-[10px] font-bold text-slate-500 bg-white/5 rounded-2xl p-6 border border-white/5 leading-relaxed">
-                ⚠️ <strong className="text-white">Cancellation Protocol:</strong> Encounter cannot be revoked within 24 hours of window. Pre-paid settlements are non-refundable upon revocation.
+                ⚠️ <strong className="text-white">Cancellation Protocol:</strong> Encounter can be cancelled at any time. Pre-paid settlements are non-refundable upon cancellation.
               </div>
             </CardContent>
           </Card>
@@ -470,13 +580,14 @@ export default function PatientDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="p-8">
-              {appointments.length === 0 ? (
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-16 text-center opacity-40 italic">System clear. No pending encounters.</div>
-              ) : (
-                <div className="space-y-6">
-                  {appointments.map((a) => (
-                    <div key={a._id} className="rounded-[20px] border border-slate-100 p-6 bg-slate-50/50 hover:bg-white hover:shadow-xl transition-all group border-l-4 border-l-[#1E3A8A]">
-                      <div className="flex flex-wrap items-start justify-between gap-6">
+              {currentView === "active" ? (
+                activeAppointments.length === 0 ? (
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-16 text-center opacity-40 italic">System clear. No pending encounters.</div>
+                ) : (
+                  <div className="space-y-6">
+                    {activeAppointments.map((a) => (
+                      <div key={a._id} className="rounded-[20px] border border-slate-100 p-6 bg-slate-50/50 hover:bg-white hover:shadow-xl transition-all group border-l-4 border-l-[#1E3A8A]">
+                        <div className="flex flex-wrap items-start justify-between gap-6">
                         <div className="flex gap-6">
                            <div className="w-16 h-16 rounded-[14px] bg-[#1E3A8A]/10 flex items-center justify-center text-2xl font-black text-[#1E3A8A] shadow-sm group-hover:scale-110 transition-transform">
                               {a.doctorId?.name[0]}
@@ -486,9 +597,9 @@ export default function PatientDashboard() {
                                 <Link href={`/doctors/${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
                                   Dr. {a.doctorId?.name || "Specialist"}
                                 </Link>
-                                {a.doctorId?.specialization && (
-                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.doctorId.specialization}</span>
-                                )}
+                                 {a.doctorId?.specialization && (
+                                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.doctorId.specialization} {a.doctorId.appointmentFee ? `· $${a.doctorId.appointmentFee}` : ""}</span>
+                                 )}
                               </div>
                               <div className="text-xs font-bold text-slate-500">
                                 <Link href={`/hospitals/${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
@@ -502,12 +613,18 @@ export default function PatientDashboard() {
                               </div>
                               <div className="flex flex-wrap gap-3 mt-3">
                                 <StatusBadge status={a.status} />
-                                <PaymentBadge status={a.paymentStatus} method={a.paymentMethod} />
+                                <PaymentBadge status={a.paymentStatus} method={a.paymentMethod} amount={a.doctorId?.appointmentFee} />
                               </div>
                            </div>
                         </div>
 
-                        <div className="flex gap-3 items-center">
+                        <div className="flex gap-3 items-center relative">
+                          {unreadCounts[a._id] > 0 && activeChatAppointmentId !== a._id && (
+                            <div className="absolute -top-3 -right-2 flex items-center justify-center bg-rose-500 text-white text-[10px] font-black w-6 h-6 rounded-full shadow-lg animate-bounce z-10 border-2 border-white">
+                              <Bell className="w-3 h-3 mr-0.5" />
+                              {unreadCounts[a._id]}
+                            </div>
+                          )}
                           {a.status !== "cancelled" && a.status !== "completed" && (
                             <Button
                               variant="ghost"
@@ -516,7 +633,7 @@ export default function PatientDashboard() {
                               onClick={() => cancelBooking(a._id)}
                               disabled={loading}
                             >
-                              Revoke
+                              Cancel
                             </Button>
                           )}
                           {a.status === "confirmed" && (
@@ -542,7 +659,7 @@ export default function PatientDashboard() {
                               <div className="text-[10px] font-black uppercase text-slate-300 text-center py-12 italic tracking-widest">No communication history.</div>
                             ) : (
                               messages.map((m) => {
-                                const isMe = m.senderId === session?._id;
+                                const isMe = String(m.senderId) === String(session?._id);
                                 return (
                                   <div key={m._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                                     <div className={`max-w-[80%] rounded-[16px] px-4 py-3 text-sm font-medium ${isMe
@@ -576,7 +693,88 @@ export default function PatientDashboard() {
                     </div>
                   ))}
                 </div>
-              )}
+              )
+            ) : (
+              // HISTORY VIEW
+              historyAppointments.length === 0 ? (
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-16 text-center opacity-40 italic">Archive empty. No historical encounters.</div>
+              ) : (
+                <div className="space-y-4">
+                  {historyAppointments.map((a) => (
+                    <Card key={a._id} className={`rounded-[24px] border ${selectedHistoryIds.includes(a._id) ? 'border-rose-400 bg-rose-50/20' : 'border-slate-100 bg-slate-50/30'} shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden`} onClick={() => setExpandedHistoryId(expandedHistoryId === a._id ? null : a._id)}>
+                      <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                         <div className="flex items-center gap-5">
+                            <div 
+                              className={`w-6 h-6 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryIds.includes(a._id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-slate-300'}`}
+                              onClick={(e) => toggleHistorySelection(a._id, e)}
+                            >
+                              {selectedHistoryIds.includes(a._id) && <div className="w-3 h-3 bg-white rounded-sm" />}
+                            </div>
+                            <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center font-black text-xl shadow-inner border ${a.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
+                               {a.doctorId?.name[0] || "D"}
+                            </div>
+                            <div>
+                               <span className="font-black text-[#0F172A] text-lg block tracking-tight uppercase transition-colors">Dr. {a.doctorId?.name}</span>
+                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(a.date).toDateString()} · {a.hospitalId?.name}</span>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-4">
+                            <StatusBadge status={a.status} />
+                         </div>
+                      </div>
+                      {expandedHistoryId === a._id && (
+                        <div className="p-8 pt-4 border-t border-slate-100 bg-white animate-in slide-in-from-top-4 duration-500">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                              <div className="space-y-2"><span className="opacity-60 block">Doctor Phone</span><span className="text-[#0F172A] block">{a.doctorId?.phone || "N/A"}</span></div>
+                              <div className="space-y-2"><span className="opacity-60 block">Settlement Status</span><span className="text-emerald-600">{a.paymentStatus} ({a.paymentMethod})</span></div>
+                           </div>
+                           
+                           {a.status === 'completed' && (
+                             <>
+                               <div className="pt-6 border-t border-slate-100 mt-2">
+                                  <Label className="text-[10px] font-black uppercase text-[#1E3A8A] tracking-[0.2em] mb-4 block">Doctor Notes & Diagnosis</Label>
+                                  <div className="p-6 rounded-[20px] bg-slate-50 border border-slate-100 text-sm text-[#0F172A] italic whitespace-pre-wrap leading-relaxed">
+                                     "{a.doctorNotes || "No clinical data was recorded."}"
+                                  </div>
+                               </div>
+                               <div className="pt-6 mt-6 flex justify-end gap-3">
+                                  <Button 
+                                    variant="outline"
+                                    className="rounded-[14px] font-black uppercase text-[10px] tracking-widest text-rose-500 border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                                    onClick={(e) => { e.stopPropagation(); deleteHistory([a._id]); }}
+                                    disabled={loading}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  </Button>
+                                  <Button 
+                                    className="rounded-[14px] font-black uppercase text-[10px] tracking-widest bg-[#1E3A8A] text-white shadow-md hover:bg-[#2563EB]"
+                                    onClick={(e) => { e.stopPropagation(); requestChat(a.doctorId._id); }}
+                                    disabled={loading}
+                                  >
+                                    Request to Chat
+                                  </Button>
+                               </div>
+                             </>
+                           )}
+                           {a.status !== 'completed' && (
+                             <div className="pt-6 mt-6 flex justify-end">
+                                <Button 
+                                  variant="outline"
+                                  className="rounded-[14px] font-black uppercase text-[10px] tracking-widest text-rose-500 border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                                  onClick={(e) => { e.stopPropagation(); deleteHistory([a._id]); }}
+                                  disabled={loading}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" /> Delete Record
+                                </Button>
+                             </div>
+                           )}
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )
+            )}
             </CardContent>
           </Card>
         </div>

@@ -4,6 +4,7 @@ import { User, UserRole } from '../models/user.model';
 import { Hospital } from '../models/hospital.model';
 import { Appointment, AppointmentStatus } from '../models/appointment.model';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { getIo } from '../socket';
 
 export const getPendingHospitals = async (req: AuthRequest, res: Response) => {
   try {
@@ -176,6 +177,80 @@ export const getGlobalStats = async (req: AuthRequest, res: Response) => {
         }, {})
       }
     });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getPendingFeeUpdates = async (req: AuthRequest, res: Response) => {
+  try {
+    const doctors = await User.find({
+      role: UserRole.DOCTOR,
+      pendingFeeUpdate: { $exists: true }
+    }).select('name email specialization appointmentFee pendingFeeUpdate').lean();
+    res.json(doctors);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const approveFeeUpdate = async (req: AuthRequest, res: Response) => {
+  try {
+    const { doctorId, status, reason } = req.body; // status: 'approved' | 'rejected'
+    const doctor = await User.findById(doctorId);
+    if (!doctor || doctor.role !== UserRole.DOCTOR) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    if (!doctor.pendingFeeUpdate || doctor.pendingFeeUpdate.status !== 'pending') {
+      return res.status(400).json({ message: 'No pending fee update for this doctor' });
+    }
+
+    if (status === 'approved') {
+      doctor.appointmentFee = doctor.pendingFeeUpdate.newFee;
+      doctor.pendingFeeUpdate.status = 'approved';
+      if (reason) doctor.pendingFeeUpdate.reason = reason;
+    } else {
+      doctor.pendingFeeUpdate.status = 'rejected';
+      if (reason) doctor.pendingFeeUpdate.reason = reason;
+    }
+
+    await doctor.save();
+    
+    try {
+      getIo().to(`user_${doctor._id}`).emit('feeUpdateNotification', {
+        status: doctor.pendingFeeUpdate.status,
+        newFee: doctor.pendingFeeUpdate.newFee,
+        reason: doctor.pendingFeeUpdate.reason
+      });
+    } catch (err) {
+      console.log('Failed to emit feeUpdateNotification', err);
+    }
+
+    res.json({ message: `Fee update ${status} successfully` });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+export const bulkUpdateFees = async (req: AuthRequest, res: Response) => {
+  try {
+    const { newFee } = req.body;
+    if (!newFee || isNaN(Number(newFee))) {
+      return res.status(400).json({ message: 'Valid newFee is required' });
+    }
+
+    const result = await User.updateMany(
+      { role: UserRole.DOCTOR },
+      { 
+        pendingFeeUpdate: { 
+          newFee: Number(newFee), 
+          status: 'pending', 
+          requestedAt: new Date() 
+        } 
+      }
+    );
+
+    res.json({ message: `Bulk update initiated for ${result.modifiedCount} doctors`, count: result.modifiedCount });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

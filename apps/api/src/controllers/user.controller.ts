@@ -15,7 +15,8 @@ export const onboardDoctor = async (req: AuthRequest, res: Response) => {
       specialization, 
       experienceYears, 
       previousWork, 
-      hospitalIds 
+      hospitalIds,
+      appointmentFee
     } = req.body;
 
     const user = await User.findById(userId);
@@ -30,6 +31,7 @@ export const onboardDoctor = async (req: AuthRequest, res: Response) => {
     user.experienceYears = Number(experienceYears);
     user.previousWork = previousWork;
     user.hospitalIds = hospitalIds;
+    user.appointmentFee = Number(appointmentFee) || 0;
     user.isOnboarded = true;
     
     // Initialize hospital approvals
@@ -70,6 +72,33 @@ export const updateMe = async (req: AuthRequest, res: Response) => {
     ).select('-password');
 
     res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const requestFeeUpdate = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const { newFee } = req.body;
+
+    if (!newFee || isNaN(Number(newFee))) {
+      return res.status(400).json({ message: 'Valid newFee is required' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        pendingFeeUpdate: {
+          newFee: Number(newFee),
+          status: 'pending',
+          requestedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    res.json({ message: 'Fee update requested. Pending Super Admin approval.', user: updatedUser });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

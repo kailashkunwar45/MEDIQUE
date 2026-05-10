@@ -28,6 +28,13 @@ export interface IUser extends Document {
   isApprovedBySuperAdmin: boolean; // Final global approval
   isBanned: boolean;
   banReason?: string;
+  appointmentFee?: number;
+  pendingFeeUpdate?: {
+    newFee: number;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: Date;
+    reason?: string;
+  };
   hospitalApprovals: {
     hospitalId: mongoose.Types.ObjectId;
     status: 'pending' | 'approved' | 'rejected';
@@ -68,6 +75,13 @@ const userSchema = new Schema<IUser>(
     isApprovedBySuperAdmin: { type: Boolean, default: false },
     isBanned: { type: Boolean, default: false },
     banReason: { type: String },
+    appointmentFee: { type: Number },
+    pendingFeeUpdate: {
+      newFee: { type: Number },
+      status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+      requestedAt: { type: Date, default: Date.now },
+      reason: { type: String }
+    },
     hospitalApprovals: [{
       hospitalId: { type: Schema.Types.ObjectId, ref: 'Hospital' },
       status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
