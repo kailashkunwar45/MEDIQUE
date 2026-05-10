@@ -83,7 +83,7 @@ function DoctorProfileContent() {
     setLoading(true);
     const s = getSession();
 
-    const profileFetch = fetch(`/api/users/doctors?id=${id}`)
+    const profileFetch = fetch(`/api/users/doctors/${id}`)
       .then((r) => r.json());
 
     // If patient is logged in, check for completed appointments with this doctor

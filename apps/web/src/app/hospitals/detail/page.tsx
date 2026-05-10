@@ -75,11 +75,11 @@ function HospitalDetailContent() {
     if (!id) return;
     setLoading(true);
 
-    const hospitalFetch = fetch(`/api/hospitals/detail?id=${id}`, {
+    const hospitalFetch = fetch(`/api/hospitals/${id}`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
-    const reviewsFetch = fetch(`/api/hospitals/detail?id=${id}/reviews`, {
+    const reviewsFetch = fetch(`/api/hospitals/${id}/reviews`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
@@ -111,7 +111,7 @@ function HospitalDetailContent() {
   const submitReview = async () => {
     setReviewError(""); setReviewInfo(""); setSubmitting(true);
     try {
-      const res = await fetch(`/api/hospitals/detail?id=${id}/reviews`, {
+      const res = await fetch(`/api/hospitals/${id}/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
