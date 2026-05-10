@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { authFetch } from "@/lib/authFetch";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005";
+const API = "";
 
 const ALL_SPECIALIZATIONS = [
   "Cardiology", "Dermatology", "ENT", "Gastroenterology",

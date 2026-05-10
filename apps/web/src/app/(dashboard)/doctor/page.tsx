@@ -163,7 +163,7 @@ export default function DoctorDashboard() {
   const authFetch = async (path: string, init?: RequestInit) => {
     const s = getSession();
     if (!s?.accessToken) throw new Error("Not logged in");
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+    const res = await fetch(`${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -191,14 +191,14 @@ export default function DoctorDashboard() {
     try {
       const s = getSession();
       if (!s) return;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/me`, {
+      const res = await fetch(`/api/users/me`, {
         headers: { Authorization: `Bearer ${s.accessToken}` }
       });
       const data = await res.json();
       if (data.hospitalIds) {
         const hospitalData = await Promise.all(
           data.hospitalIds.map((id: string) => 
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}`, {
+            fetch(`/api/hospitals/detail?id=${id}`, {
                headers: { Authorization: `Bearer ${s.accessToken}` }
             }).then(r => r.json().then(d => d.hospital))
           )
@@ -214,7 +214,7 @@ export default function DoctorDashboard() {
     void loadDoctorHospitals();
     void loadChatRequests();
 
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+    const socket = io();
     globalSocketRef.current = socket;
     socket.emit("registerUser", { token: session.accessToken });
     
@@ -233,7 +233,7 @@ export default function DoctorDashboard() {
       try {
         const s = getSession();
         if (!s?.accessToken) return;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/me`, {
+        const res = await fetch(`/api/users/me`, {
           headers: { Authorization: `Bearer ${s.accessToken}` }
         });
         const freshUser = await res.json();
@@ -372,7 +372,7 @@ export default function DoctorDashboard() {
 
     const s = getSession();
     if (!socketRef.current) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+      const socket = io();
       socketRef.current = socket;
     }
     socketRef.current.emit("joinChat", { appointmentId, token: s?.accessToken });

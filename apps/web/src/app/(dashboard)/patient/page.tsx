@@ -159,7 +159,7 @@ export default function PatientDashboard() {
     setSession(s); 
 
     if (s?.accessToken) {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+      const socket = io();
       globalSocketRef.current = socket;
       socket.emit("registerUser", { token: s.accessToken });
       
@@ -311,7 +311,7 @@ export default function PatientDashboard() {
       return;
     }
 
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5005");
+    const socket = io();
     socket.emit("joinChat", { appointmentId, token: session?.accessToken });
     socket.on("message", (msg: ChatMessage) => {
       if (msg.appointmentId !== appointmentId) return;

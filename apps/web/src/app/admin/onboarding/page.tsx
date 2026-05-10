@@ -32,7 +32,7 @@ export default function HospitalOnboardingPage() {
     const session = JSON.parse(localStorage.getItem("mediqueue_session") || "{}");
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospital-admin/onboard`, {
+      const response = await fetch(`/api/hospital-admin/onboard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

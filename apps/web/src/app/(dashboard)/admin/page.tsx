@@ -78,7 +78,7 @@ export default function HospitalAdminDashboard() {
 
   const authFetch = async (path: string, init?: RequestInit) => {
     if (!session?.accessToken) return;
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+    const res = await fetch(`${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",

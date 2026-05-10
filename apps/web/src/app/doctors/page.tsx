@@ -83,12 +83,12 @@ function DoctorProfileContent() {
     setLoading(true);
     const s = getSession();
 
-    const profileFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/doctors?id=${id}`)
+    const profileFetch = fetch(`/api/users/doctors?id=${id}`)
       .then((r) => r.json());
 
     // If patient is logged in, check for completed appointments with this doctor
     const apptFetch = s?.accessToken && s.role === 'patient'
-      ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/appointments/my`, {
+      ? fetch(`/api/appointments/my`, {
           headers: { Authorization: `Bearer ${s.accessToken}` }
         }).then((r) => r.json()).catch(() => [])
       : Promise.resolve([]);
@@ -113,7 +113,7 @@ function DoctorProfileContent() {
   const submitReview = async () => {
     setReviewError(""); setReviewInfo(""); setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reviews`, {
+      const res = await fetch(`/api/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -62,10 +62,10 @@ export default function HospitalsPage() {
     
     setLoading(true);
     Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005'}/api/hospitals`, {
+      fetch(`/api/hospitals`, {
         headers: { Authorization: `Bearer ${session.accessToken}` },
       }).then((r) => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005'}/api/users/doctors`, {
+      fetch(`/api/users/doctors`, {
         headers: { Authorization: `Bearer ${session.accessToken}` },
       }).then((r) => r.json())
     ])

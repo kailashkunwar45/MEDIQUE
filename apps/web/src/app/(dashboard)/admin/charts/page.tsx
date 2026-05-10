@@ -28,7 +28,7 @@ export default function AdminChartsPage() {
     if (!raw) { router.push("/login"); return; }
     const session = JSON.parse(raw);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospital-admin/stats`, {
+    fetch(`/api/hospital-admin/stats`, {
       headers: { Authorization: `Bearer ${session.accessToken}` }
     })
       .then(res => res.json())

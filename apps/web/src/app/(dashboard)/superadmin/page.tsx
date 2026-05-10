@@ -76,7 +76,7 @@ export default function SuperAdminDashboard() {
 
   const authFetch = async (path: string, init?: RequestInit) => {
     const session = JSON.parse(localStorage.getItem("mediqueue_session") || "{}");
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+    const res = await fetch(`${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",

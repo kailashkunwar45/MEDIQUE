@@ -22,7 +22,7 @@ function CaseFileContent() {
     if (!raw) { router.push("/login"); return; }
     const session = JSON.parse(raw);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/appointments/${id}`, {
+    fetch(`/api/appointments/${id}`, {
       headers: { Authorization: `Bearer ${session.accessToken}` }
     })
       .then(res => res.json())

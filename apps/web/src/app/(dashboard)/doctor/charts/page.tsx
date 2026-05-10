@@ -22,7 +22,7 @@ export default function DoctorChartsPage() {
     if (!raw) { router.push("/login"); return; }
     const session = JSON.parse(raw);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospital-admin/doctor/stats`, {
+    fetch(`/api/hospital-admin/doctor/stats`, {
       headers: { Authorization: `Bearer ${session.accessToken}` }
     })
       .then(res => res.json())

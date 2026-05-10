@@ -81,7 +81,7 @@ export default function ProfilePage() {
 
   const authFetch = async (path: string, init?: RequestInit) => {
     if (!session?.accessToken) throw new Error("Not logged in");
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+    const res = await fetch(`${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",

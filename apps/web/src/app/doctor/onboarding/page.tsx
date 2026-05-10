@@ -38,7 +38,7 @@ export default function DoctorOnboardingPage() {
     }
 
     // Load hospitals for step 2
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals`, {
+    fetch(`/api/hospitals`, {
       headers: { Authorization: `Bearer ${session.accessToken}` },
     })
       .then((res) => res.json())
@@ -63,7 +63,7 @@ export default function DoctorOnboardingPage() {
     const session = JSON.parse(localStorage.getItem("mediqueue_session") || "{}");
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/onboard`, {
+      const response = await fetch(`/api/users/onboard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

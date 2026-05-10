@@ -75,17 +75,17 @@ function HospitalDetailContent() {
     if (!id) return;
     setLoading(true);
 
-    const hospitalFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}`, {
+    const hospitalFetch = fetch(`/api/hospitals/detail?id=${id}`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
-    const reviewsFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}/reviews`, {
+    const reviewsFetch = fetch(`/api/hospitals/detail?id=${id}/reviews`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
     // Check if patient has a completed appointment at this hospital
     const apptFetch = s?.accessToken && s.role === 'patient'
-      ? fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/appointments/my`, {
+      ? fetch(`/api/appointments/my`, {
           headers: { Authorization: `Bearer ${s.accessToken}` }
         }).then((r) => r.json()).catch(() => [])
       : Promise.resolve([]);
@@ -111,7 +111,7 @@ function HospitalDetailContent() {
   const submitReview = async () => {
     setReviewError(""); setReviewInfo(""); setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}/reviews`, {
+      const res = await fetch(`/api/hospitals/detail?id=${id}/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
