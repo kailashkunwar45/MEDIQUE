@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, User, LogOut, LayoutDashboard } from "lucide-react";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { usePathname } from "next/navigation";
 
 type Session = {
   _id: string;
@@ -18,6 +19,8 @@ interface NavbarProps {
 
 export function Navbar({ session }: NavbarProps) {
   const { totalUnread } = useUnreadCount(session?.accessToken);
+  const pathname = usePathname();
+  const isChatPage = pathname === "/chat";
 
   const logout = () => {
     localStorage.removeItem("mediqueue_session");
@@ -66,7 +69,7 @@ export function Navbar({ session }: NavbarProps) {
           <Link href="/chat">
             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
               <MessageSquare className="w-4 h-4 mr-2" /> Secure Chat
-              {totalUnread > 0 && (
+              {totalUnread > 0 && !isChatPage && (
                 <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
                   {totalUnread}
                 </span>
