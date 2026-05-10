@@ -137,7 +137,22 @@ export default function DoctorDashboard() {
       return;
     }
     setSession(s);
+    if (s?.accessToken) void loadUserData();
   }, []);
+
+  const loadUserData = async () => {
+    try {
+      const freshUser = await authFetch("/api/users/me");
+      const s = getSession();
+      if (s && freshUser) {
+        const updated = { ...s, ...freshUser };
+        localStorage.setItem("mediqueue_session", JSON.stringify(updated));
+        setSession(updated);
+      }
+    } catch (e) {
+      console.error("Failed to sync user data", e);
+    }
+  };
 
   useEffect(() => {
     if (!socketRef.current) return;

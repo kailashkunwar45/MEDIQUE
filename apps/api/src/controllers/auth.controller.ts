@@ -85,6 +85,8 @@ export const register = async (req: Request, res: Response) => {
         hospitalId: user.hospitalId,
         hospitalIds: user.hospitalIds || [],
         isOnboarded: user.isOnboarded || false,
+        appointmentFee: user.appointmentFee || 0,
+        pendingFeeUpdate: user.pendingFeeUpdate,
         accessToken,
         refreshToken,
       });
@@ -136,6 +138,8 @@ export const login = async (req: Request, res: Response) => {
         hospitalId: user.hospitalId,
         hospitalIds: user.hospitalIds || [],
         isOnboarded: user.isOnboarded || false,
+        appointmentFee: user.appointmentFee || 0,
+        pendingFeeUpdate: user.pendingFeeUpdate,
         accessToken,
         refreshToken,
       });
