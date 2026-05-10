@@ -5,7 +5,9 @@ import {
   reconnectWithPatient,
   getPendingChatRequests,
   getChatConnectionStatus,
-  getMessages
+  getMessages,
+  getConversations,
+  markAsRead
 } from '../controllers/chat.controller';
 import { protect, authorize } from '../middlewares/auth.middleware';
 import { UserRole } from '../models/user.model';

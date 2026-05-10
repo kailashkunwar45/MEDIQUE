@@ -22,6 +22,7 @@ import { io, Socket } from "socket.io-client";
 import { authFetch } from "@/lib/authFetch";
 import Link from "next/link";
 import { format } from "date-fns";
+import { Navbar } from "@/components/Navbar";
 
 type Session = {
   _id: string;
@@ -187,31 +188,7 @@ export default function GlobalChatPage() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex flex-col">
-      {/* GLOBAL HEADER */}
-      <div className="bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <Link href={`/${session?.role || "patient"}`}>
-             <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white hover:bg-white/5 rounded-xl">
-               <ArrowLeft className="w-5 h-5" />
-             </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-white uppercase">Secure Network</h1>
-            <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-70">
-              Encrypted Medical Communications
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden md:flex flex-col items-end mr-4">
-             <span className="text-xs font-black text-white">{session?.name}</span>
-             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{session?.role} terminal</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] flex items-center justify-center shadow-lg border border-white/10">
-            <UserIcon className="text-white w-5 h-5" />
-          </div>
-        </div>
-      </div>
+      <Navbar session={session} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* SIDEBAR: CONVERSATION LIST */}

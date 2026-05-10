@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { Navbar } from "@/components/Navbar";
 import { 
   ShieldCheck, 
   Stethoscope, 
@@ -67,7 +68,13 @@ export default function SuperAdminDashboard() {
   const [info, setInfo] = useState("");
   const [rejectingFeeFor, setRejectingFeeFor] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [session, setSession] = useState<any>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const s = JSON.parse(localStorage.getItem("mediqueue_session") || "{}");
+    setSession(s);
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("mediqueue_session");
@@ -213,30 +220,7 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      <div className="w-full bg-white/70 backdrop-blur-xl border-b border-slate-200 px-8 py-6 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-5">
-             <div className="w-14 h-14 rounded-[20px] bg-white flex items-center justify-center shadow-xl border border-slate-100 p-2">
-                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
-             </div>
-             <div>
-                <h1 className="text-3xl font-black tracking-tighter text-[#0F172A] uppercase">MediQueue</h1>
-                <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-70 mt-0.5">
-                  Platform Oversight: <span className="text-[#1E3A8A] font-black">Global Super Admin</span>
-                </p>
-             </div>
-          </div>
-          <div className="flex items-center gap-3">
-              <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm" onClick={loadData}>Sync Global State</Button>
-              <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
-                Log Out
-              </Button>
-              <Link href="/profile">
-                 <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">System Command</Button>
-              </Link>
-           </div>
-        </div>
-      </div>
+      <Navbar session={session} />
 
       <div className="max-w-7xl mx-auto p-8 space-y-10">
         {error && <div className="p-4 bg-rose-50 text-rose-600 rounded-[20px] font-black text-[10px] uppercase tracking-widest border border-rose-100">{error}</div>}

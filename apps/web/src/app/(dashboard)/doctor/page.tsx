@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Navbar } from "@/components/Navbar";
 import { 
   Stethoscope, 
   Building2, 
@@ -108,7 +109,6 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [totalUnread, setTotalUnread] = useState(0);
   const [openChatIds, setOpenChatIds] = useState<string[]>([]);
   const [expandedAppointmentId, setExpandedAppointmentId] = useState<string | null>(null);
   const [messagesMap, setMessagesMap] = useState<Record<string, ChatMessage[]>>({});
@@ -140,17 +140,9 @@ export default function DoctorDashboard() {
     setSession(s);
     if (s?.accessToken) {
       void loadUserData();
-      void loadUnreadCount();
     }
   }, []);
 
-  const loadUnreadCount = async () => {
-    try {
-      const data = await authFetch("/api/chat/conversations");
-      const total = data.reduce((acc: number, conv: any) => acc + (conv.unreadCount || 0), 0);
-      setTotalUnread(total);
-    } catch (e) { console.error("Failed to load unread count", e); }
-  };
 
   const loadUserData = async () => {
     try {
@@ -462,43 +454,7 @@ export default function DoctorDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      <div className="w-full bg-white/70 backdrop-blur-xl border-b border-slate-200 px-8 py-6 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-[20px] bg-white flex items-center justify-center shadow-xl border border-slate-100 p-2">
-               <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-black tracking-tighter text-[#0F172A] uppercase">MediQueue</h1>
-              <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase opacity-70 mt-0.5">
-                Medical Portal: <span className="text-[#1E3A8A] font-black">Dr. {session?.name}</span>
-              </p>
-            </div>
-          </div>
-           <div className="flex items-center gap-3">
-             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm" onClick={loadAppointments} disabled={loading}>
-               {loading ? "Syncing Logic..." : "Sync Feed"}
-             </Button>
-             <Button variant="ghost" className="rounded-[14px] px-6 py-6 font-bold text-rose-500 hover:bg-rose-50 transition-all" onClick={logout}>
-               Log Out
-             </Button>
-            <Link href="/chat">
-               <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
-                 Secure Chat
-                 {totalUnread > 0 && (
-                   <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
-                     {totalUnread}
-                   </span>
-                 )}
-               </Button>
-            </Link>
-            
-            <Link href="/profile">
-               <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">Operational ID</Button>
-             </Link>
-           </div>
-        </div>
-      </div>
+      <Navbar session={session} />
 
       <div className="max-w-7xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-4 gap-10">
         <div className="lg:col-span-1 space-y-8">
