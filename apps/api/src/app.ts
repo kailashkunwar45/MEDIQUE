@@ -19,10 +19,10 @@ import superAdminRoutes from './routes/superAdmin.routes';
 
 const app = express();
 
-// Global rate limiter: 100 requests per minute per IP
+// Global rate limiter: 1000 requests per minute per IP (Relaxed for development/dashboard sync)
 const limiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests, please try again later.' },
@@ -60,6 +60,10 @@ app.use(express.static(webOutPath));
 
 // Fallback for SPA routing
 app.use((req, res) => {
+  // If it looks like an API call or a static file, don't serve index.html
+  if (req.path.startsWith('/api') || path.extname(req.path)) {
+    return res.status(404).json({ message: 'Resource not found' });
+  }
   res.sendFile(path.join(webOutPath, 'index.html'));
 });
 
