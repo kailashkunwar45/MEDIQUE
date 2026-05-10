@@ -180,25 +180,25 @@ export default function GlobalChatPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
         <div className="w-12 h-12 border-4 border-[#1E3A8A] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex flex-col">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col text-slate-900">
       <Navbar session={session} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* SIDEBAR: CONVERSATION LIST */}
-        <div className={`w-full lg:w-96 border-r border-white/5 bg-slate-900/30 flex flex-col ${activeConversationId ? "hidden lg:flex" : "flex"}`}>
+        <div className={`w-full lg:w-96 border-r border-slate-200 bg-white/50 backdrop-blur-sm flex flex-col ${activeConversationId ? "hidden lg:flex" : "flex"}`}>
           <div className="p-6">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-[#1E3A8A] transition-colors" />
               <Input 
-                placeholder="Search encrypted channels..." 
-                className="pl-11 h-12 rounded-[16px] bg-slate-900/50 border-white/5 focus:border-[#1E3A8A]/50 focus:ring-0 text-xs font-bold text-slate-300 placeholder:text-slate-600"
+                placeholder="Search active channels..." 
+                className="pl-11 h-12 rounded-[16px] bg-white border-slate-200 focus:border-[#1E3A8A]/50 focus:ring-0 text-xs font-bold text-slate-700 placeholder:text-slate-400 shadow-sm"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -227,7 +227,7 @@ export default function GlobalChatPage() {
                   <div className="flex gap-4">
                     <div className="relative">
                       <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center border transition-all duration-300 ${
-                        activeConversationId === conv.appointmentId ? "bg-white/10 border-white/20" : "bg-slate-800 border-white/5"
+                        activeConversationId === conv.appointmentId ? "bg-white/20 border-white/30" : "bg-slate-100 border-slate-200"
                       }`}>
                          <UserIcon className={`w-6 h-6 ${activeConversationId === conv.appointmentId ? "text-white" : "text-slate-400"}`} />
                       </div>
@@ -240,12 +240,12 @@ export default function GlobalChatPage() {
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                       <div className="flex justify-between items-start mb-1">
                         <h3 className={`text-sm font-black truncate tracking-tight transition-colors ${
-                          activeConversationId === conv.appointmentId ? "text-white" : "text-slate-200"
+                          activeConversationId === conv.appointmentId ? "text-white" : "text-slate-900"
                         }`}>
                           {session?.role === 'doctor' ? conv.partner.name : `Dr. ${conv.partner.name}`}
                         </h3>
                         <span className={`text-[9px] font-black uppercase tracking-widest flex-shrink-0 ml-2 ${
-                          activeConversationId === conv.appointmentId ? "text-white/60" : "text-slate-500"
+                          activeConversationId === conv.appointmentId ? "text-white/80" : "text-slate-400"
                         }`}>
                           {conv.lastMessage ? format(new Date(conv.lastMessage.createdAt), "HH:mm") : format(new Date(conv.date), "MMM d")}
                         </span>
@@ -264,11 +264,11 @@ export default function GlobalChatPage() {
         </div>
 
         {/* MAIN CHAT AREA */}
-        <div className={`flex-1 flex flex-col bg-slate-950/20 ${!activeConversationId ? "hidden lg:flex" : "flex"}`}>
+        <div className={`flex-1 flex flex-col bg-slate-50/50 ${!activeConversationId ? "hidden lg:flex" : "flex"}`}>
           {activeConversationId && activeConv ? (
             <>
               {/* CHAT HEADER */}
-              <div className="px-8 py-4 bg-slate-900/50 border-b border-white/5 flex items-center justify-between">
+              <div className="px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-4">
                   <Button 
                     variant="ghost" 
@@ -278,16 +278,16 @@ export default function GlobalChatPage() {
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </Button>
-                  <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-white/5 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
                     <UserIcon className="text-slate-400 w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-white tracking-tight">
+                    <h2 className="text-sm font-black text-[#0F172A] tracking-tight">
                        {session?.role === 'doctor' ? activeConv.partner.name : `Dr. ${activeConv.partner.name}`}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
-                       <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Secure Link</span>
+                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Link</span>
                     </div>
                   </div>
                 </div>
@@ -301,12 +301,12 @@ export default function GlobalChatPage() {
               {/* MESSAGES */}
               <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
                 {/* APPOINTMENT INFO CARD */}
-                <div className="max-w-md mx-auto p-6 rounded-[28px] bg-slate-900/50 border border-white/5 flex flex-col items-center text-center space-y-4 mb-12">
-                   <div className="w-16 h-16 rounded-full bg-[#1E3A8A]/10 border border-[#1E3A8A]/20 flex items-center justify-center">
+                <div className="max-w-md mx-auto p-6 rounded-[28px] bg-white border border-slate-200 flex flex-col items-center text-center space-y-4 mb-12 shadow-sm">
+                   <div className="w-16 h-16 rounded-full bg-[#1E3A8A]/5 border border-[#1E3A8A]/10 flex items-center justify-center">
                       <Calendar className="text-[#1E3A8A] w-6 h-6" />
                    </div>
                    <div>
-                      <h4 className="text-xs font-black text-white uppercase tracking-widest">Appointment Protocol</h4>
+                      <h4 className="text-xs font-black text-[#0F172A] uppercase tracking-widest">Appointment Protocol</h4>
                       <p className="text-[10px] text-slate-500 font-bold mt-1">
                         Scheduled for {format(new Date(activeConv.date), "MMMM d, yyyy")}
                       </p>
@@ -319,10 +319,10 @@ export default function GlobalChatPage() {
                   return (
                     <div key={msg._id || i} className={`flex ${isMe ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                       <div className={`max-w-[70%] group ${isMe ? "items-end" : "items-start"}`}>
-                        <div className={`px-6 py-4 rounded-[24px] text-sm font-bold leading-relaxed shadow-lg ${
+                        <div className={`px-6 py-4 rounded-[24px] text-sm font-bold leading-relaxed shadow-md ${
                           isMe 
                           ? "bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] text-white rounded-br-none" 
-                          : "bg-slate-800 text-slate-200 border border-white/5 rounded-bl-none"
+                          : "bg-white text-slate-800 border border-slate-200 rounded-bl-none"
                         }`}>
                           {msg.text}
                         </div>
@@ -339,12 +339,12 @@ export default function GlobalChatPage() {
               </div>
 
               {/* INPUT AREA */}
-              <div className="p-8 bg-slate-900/30 border-t border-white/5">
+              <div className="p-8 bg-white/50 border-t border-slate-200 backdrop-blur-sm">
                 <div className="max-w-4xl mx-auto flex gap-4">
                   <div className="flex-1 relative">
                     <Input 
-                      placeholder="Type your secure message..." 
-                      className="h-14 rounded-[20px] bg-slate-900 border-white/10 focus:border-[#1E3A8A] focus:ring-0 text-sm font-bold text-white px-6"
+                      placeholder="Type your message..." 
+                      className="h-14 rounded-[20px] bg-white border-slate-200 focus:border-[#1E3A8A] focus:ring-0 text-sm font-bold text-slate-900 px-6 shadow-sm"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && sendMessage()}
@@ -364,26 +364,26 @@ export default function GlobalChatPage() {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-8">
-              <div className="w-32 h-32 bg-slate-900/50 rounded-[40px] border border-white/5 flex items-center justify-center shadow-2xl relative">
-                 <MessageSquare className="text-slate-700 w-12 h-12" />
-                 <div className="absolute -top-4 -right-4 w-12 h-12 bg-blue-500/10 rounded-full blur-2xl"></div>
+              <div className="w-32 h-32 bg-white rounded-[40px] border border-slate-200 flex items-center justify-center shadow-2xl relative">
+                 <MessageSquare className="text-slate-200 w-12 h-12" />
+                 <div className="absolute -top-4 -right-4 w-12 h-12 bg-blue-500/5 rounded-full blur-2xl"></div>
               </div>
               <div className="space-y-3 max-w-xs">
-                <h3 className="text-2xl font-black text-white tracking-tight uppercase">Medical Link</h3>
+                <h3 className="text-2xl font-black text-[#0F172A] tracking-tight uppercase">Medical Link</h3>
                 <p className="text-slate-500 font-bold leading-relaxed text-xs">
                   Select a secure channel from the directory to begin encrypted medical consultation.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                    <ShieldCheck className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
-                    <p className="text-[8px] font-black text-slate-500 uppercase">HIPAA Secure</p>
-                 </div>
-                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                    <Clock className="w-5 h-5 text-blue-500 mx-auto mb-2" />
-                    <p className="text-[8px] font-black text-slate-500 uppercase">Real-time Sync</p>
-                 </div>
-              </div>
+               <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+                  <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                     <ShieldCheck className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
+                     <p className="text-[8px] font-black text-slate-400 uppercase">Secure Link</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                     <Clock className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+                     <p className="text-[8px] font-black text-slate-400 uppercase">Real-time Sync</p>
+                  </div>
+               </div>
             </div>
           )}
         </div>
@@ -397,11 +397,11 @@ export default function GlobalChatPage() {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(15, 23, 42, 0.05);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(15, 23, 42, 0.1);
         }
       `}</style>
     </div>
