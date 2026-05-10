@@ -107,7 +107,21 @@ export default function GlobalChatPage() {
         }));
 
         if (msg.appointmentId === activeConvRef.current) {
-          setMessages(prev => [...prev, msg]);
+          setMessages(prev => {
+            // Deduplicate: if we already have a message with same text from same sender recently, replace or skip
+            const exists = prev.some(m => 
+              m.text === msg.text && 
+              m.senderId === msg.senderId &&
+              Math.abs(new Date(m.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 10000
+            );
+            if (exists) {
+              // Replace the temp one with the real one from server (which has real ID)
+              return prev.map(m => 
+                (m.text === msg.text && m._id.startsWith('temp-')) ? msg : m
+              );
+            }
+            return [...prev, msg];
+          });
         }
       });
 
@@ -172,6 +186,18 @@ export default function GlobalChatPage() {
     const text = inputText;
     setInputText("");
 
+    // Optimistic Update: Add message to UI immediately for instant feedback
+    const optimisticMsg: ChatMessage = {
+      _id: `temp-${Date.now()}`,
+      appointmentId: activeConversationId,
+      senderId: session._id,
+      senderRole: session.role,
+      text,
+      createdAt: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, optimisticMsg]);
+
     try {
       socketRef.current?.emit("sendMessage", {
         appointmentId: activeConversationId,
@@ -180,6 +206,7 @@ export default function GlobalChatPage() {
       });
     } catch (e) {
       console.error("Failed to send message", e);
+      // Optional: remove the optimistic message on error
     }
   };
 
