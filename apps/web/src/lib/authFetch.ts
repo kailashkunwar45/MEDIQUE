@@ -4,7 +4,7 @@
  *  2. On any 401 Unauthorized response, clears the session and redirects to /login
  */
 
-const API = process.env.NEXT_PUBLIC_API_URL || "";
+const API = ""; // Always use relative paths for monolith deployment
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
