@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,8 +50,9 @@ function getSession(): Session | null {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-export default function HospitalDetailPage() {
-  const { id } = useParams<{ id: string }>();
+function HospitalDetailContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [data, setData] = useState<HospitalData | null>(null);
@@ -73,11 +75,11 @@ export default function HospitalDetailPage() {
     if (!id) return;
     setLoading(true);
 
-    const hospitalFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/${id}`, {
+    const hospitalFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
-    const reviewsFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/${id}/reviews`, {
+    const reviewsFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}/reviews`, {
       headers: s?.accessToken ? { Authorization: `Bearer ${s.accessToken}` } : {},
     }).then((r) => r.json());
 
@@ -109,7 +111,7 @@ export default function HospitalDetailPage() {
   const submitReview = async () => {
     setReviewError(""); setReviewInfo(""); setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/${id}/reviews`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hospitals/detail?id=${id}/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -205,14 +207,14 @@ export default function HospitalDetailPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm group-hover:text-primary transition-colors">
-                            <Link href={`/doctors/${d._id}`}>{d.name}</Link>
+                            <Link href={`/doctors?id=${d._id}`}>{d.name}</Link>
                           </div>
                           {d.specialization && (
                             <div className="text-xs text-muted-foreground">{d.specialization} {d.appointmentFee ? `· Fee: $${d.appointmentFee}` : ""}</div>
                           )}
                           <div className="text-xs text-muted-foreground">{d.email}</div>
                         </div>
-                        <Link href={`/doctors/${d._id}`}>
+                        <Link href={`/doctors?id=${d._id}`}>
                           <Button size="sm" variant="outline" className="rounded-xl text-xs">Profile</Button>
                         </Link>
                       </div>
@@ -321,5 +323,13 @@ export default function HospitalDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function HospitalDetailPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+      <HospitalDetailContent />
+    </Suspense>
   );
 }

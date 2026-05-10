@@ -127,7 +127,7 @@ export default function SuperAdminDashboard() {
   const handleRemoveHospital = async (hospitalId: string) => {
     if (!confirm("Are you sure you want to PERMANENTLY remove this hospital?")) return;
     try {
-      await authFetch(`/api/super-admin/hospitals/${hospitalId}`, { method: "DELETE" });
+      await authFetch(`/api/super-admin/hospitals/detail?id=${hospitalId}`, { method: "DELETE" });
       loadData();
     } catch (e) { setError("Remove hospital failed"); }
   };
@@ -157,7 +157,7 @@ export default function SuperAdminDashboard() {
   const handleRemoveDoctor = async (doctorId: string) => {
     if (!confirm("Are you sure you want to PERMANENTLY remove this doctor?")) return;
     try {
-      await authFetch(`/api/super-admin/doctors/${doctorId}`, { method: "DELETE" });
+      await authFetch(`/api/super-admin/doctors?id=${doctorId}`, { method: "DELETE" });
       loadData();
     } catch (e) { setError("Remove doctor failed"); }
   };

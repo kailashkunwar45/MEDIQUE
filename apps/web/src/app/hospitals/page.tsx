@@ -153,7 +153,7 @@ export default function HospitalsPage() {
                       <TierBadge tier={h.subscriptionTier} />
                     </div>
                     <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                      <Link href={`/hospitals/${h._id}`}>{h.name}</Link>
+                      <Link href={`/hospitals/detail?id=${h._id}`}>{h.name}</Link>
                     </CardTitle>
                     <CardDescription className="text-xs">{h.address}</CardDescription>
                   </CardHeader>
@@ -169,7 +169,7 @@ export default function HospitalsPage() {
                       </div>
                     )}
                     <div className="pt-2">
-                      <Link href={`/hospitals/${h._id}`}>
+                      <Link href={`/hospitals/detail?id=${h._id}`}>
                         <Button size="sm" className="w-full rounded-xl">View Facility</Button>
                       </Link>
                     </div>
@@ -201,7 +201,7 @@ export default function HospitalsPage() {
                       )}
                     </div>
                     <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                      <Link href={`/doctors/${d._id}`}>Dr. {d.name}</Link>
+                      <Link href={`/doctors?id=${d._id}`}>Dr. {d.name}</Link>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {d.hospitalId?.name || "Independent"}
@@ -209,7 +209,7 @@ export default function HospitalsPage() {
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="pt-2">
-                      <Link href={`/doctors/${d._id}`}>
+                      <Link href={`/doctors?id=${d._id}`}>
                         <Button size="sm" className="w-full rounded-xl bg-white text-black hover:bg-slate-200">View Profile</Button>
                       </Link>
                     </div>

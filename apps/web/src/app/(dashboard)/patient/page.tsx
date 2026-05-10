@@ -474,7 +474,7 @@ export default function PatientDashboard() {
                   )}
                 </select>
                 {selectedHospitalId && (
-                  <Link href={`/hospitals/${selectedHospitalId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Facility Dossier →</Link>
+                  <Link href={`/hospitals/detail?id=${selectedHospitalId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Facility Dossier →</Link>
                 )}
               </div>
 
@@ -512,7 +512,7 @@ export default function PatientDashboard() {
                   )}
                 </select>
                 {selectedDoctorId && (
-                  <Link href={`/doctors/${selectedDoctorId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Doctor Dossier →</Link>
+                  <Link href={`/doctors?id=${selectedDoctorId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Doctor Dossier →</Link>
                 )}
               </div>
 
@@ -594,7 +594,7 @@ export default function PatientDashboard() {
                            </div>
                            <div className="space-y-1">
                               <div className="flex items-center gap-3">
-                                <Link href={`/doctors/${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
+                                <Link href={`/doctors?id=${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
                                   Dr. {a.doctorId?.name || "Specialist"}
                                 </Link>
                                  {a.doctorId?.specialization && (
@@ -602,7 +602,7 @@ export default function PatientDashboard() {
                                  )}
                               </div>
                               <div className="text-xs font-bold text-slate-500">
-                                <Link href={`/hospitals/${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
+                                <Link href={`/hospitals/detail?id=${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
                                   🏥 {a.hospitalId?.name}
                                 </Link>
                               </div>

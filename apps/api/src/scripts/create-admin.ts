@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import path from 'path';
-import User from '../models/user.model';
+import { User } from '../models/user.model';
 
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 

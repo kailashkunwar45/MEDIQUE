@@ -287,7 +287,7 @@ export const getAppointmentById = async (req: AuthRequest, res: Response) => {
 export const togglePaymentStatus = async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?._id;
-    const appointmentId = req.params.id;
+    const appointmentId = String(req.params.id);
 
     if (!mongoose.Types.ObjectId.isValid(appointmentId)) {
       return res.status(400).json({ message: 'Invalid appointment ID' });

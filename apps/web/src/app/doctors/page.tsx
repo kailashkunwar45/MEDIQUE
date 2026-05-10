@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,8 +60,9 @@ function getSession(): Session | null {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-export default function DoctorProfilePage() {
-  const { id } = useParams<{ id: string }>();
+function DoctorProfileContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [data, setData] = useState<DoctorProfileData | null>(null);
@@ -81,7 +83,7 @@ export default function DoctorProfilePage() {
     setLoading(true);
     const s = getSession();
 
-    const profileFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/doctors/${id}`)
+    const profileFetch = fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/doctors?id=${id}`)
       .then((r) => r.json());
 
     // If patient is logged in, check for completed appointments with this doctor
@@ -175,7 +177,7 @@ export default function DoctorProfilePage() {
               {doctor.hospitalId && (
                 <p className="text-muted-foreground mt-2 text-sm">
                   🏥{" "}
-                  <Link href={`/hospitals/${doctor.hospitalId._id}`} className="hover:underline text-foreground font-medium">
+                  <Link href={`/hospitals/detail?id=${doctor.hospitalId._id}`} className="hover:underline text-foreground font-medium">
                     {doctor.hospitalId.name}
                   </Link>
                   {doctor.hospitalId.address && <span> · {doctor.hospitalId.address}</span>}
@@ -334,5 +336,13 @@ export default function DoctorProfilePage() {
         />
       )}
     </div>
+  );
+}
+
+export default function DoctorProfilePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+      <DoctorProfileContent />
+    </Suspense>
   );
 }

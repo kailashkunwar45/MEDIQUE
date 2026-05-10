@@ -144,7 +144,7 @@ export const getChatConnectionStatus = async (req: AuthRequest, res: Response) =
 
 export const getMessages = async (req: AuthRequest, res: Response) => {
   try {
-    const { appointmentId } = req.params;
+    const appointmentId = String(req.params.appointmentId);
     const userId = req.user?._id;
 
     if (!mongoose.Types.ObjectId.isValid(appointmentId)) {

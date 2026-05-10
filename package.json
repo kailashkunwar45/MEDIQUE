@@ -1,0 +1,12 @@
+{
+  "name": "mediqueue-monolith",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd apps/api && npm install && npm run build && cd ../../apps/web && npm install && npm run build",
+    "start": "node apps/api/dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

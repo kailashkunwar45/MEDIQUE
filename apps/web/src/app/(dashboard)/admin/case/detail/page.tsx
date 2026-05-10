@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, User, Stethoscope, MessageSquare, Star } from "lucide-react";
 import Link from "next/link";
 
-export default function CaseFilePage() {
-  const params = useParams();
+function CaseFileContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const router = useRouter();
   const [appointment, setAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function CaseFilePage() {
     if (!raw) { router.push("/login"); return; }
     const session = JSON.parse(raw);
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/appointments/${params.id}`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/appointments/${id}`, {
       headers: { Authorization: `Bearer ${session.accessToken}` }
     })
       .then(res => res.json())
@@ -32,7 +34,7 @@ export default function CaseFilePage() {
         setError("Failed to load case file");
         setLoading(false);
       });
-  }, [params.id, router]);
+  }, [id, router]);
 
   if (loading) return <div className="p-10 text-center font-bold text-slate-400">Opening Case File...</div>;
   if (error) return <div className="p-10 text-center text-rose-500 font-bold">{error}</div>;
@@ -134,5 +136,13 @@ export default function CaseFilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CaseFilePage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">Loading Suspense...</div>}>
+      <CaseFileContent />
+    </Suspense>
   );
 }

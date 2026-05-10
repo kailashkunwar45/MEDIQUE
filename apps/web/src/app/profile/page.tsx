@@ -109,7 +109,7 @@ export default function ProfilePage() {
       setPreviousWork(me?.previousWork || "");
       
       if (me.role === 'hospital_admin' && me.hospitalId) {
-        const hData = await authFetch(`/api/hospitals/${me.hospitalId}`);
+        const hData = await authFetch(`/api/hospitals/detail?id=${me.hospitalId}`);
         setCertification(hData.hospital.certification || "");
         setServices(hData.hospital.services?.join(", ") || "");
       }
@@ -280,7 +280,7 @@ export default function ProfilePage() {
               <CardDescription>This is what patients see when they click on your name.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href={`/doctors/${session?._id}`}>
+              <Link href={`/doctors?id=${session?._id}`}>
                 <Button variant="outline" className="rounded-xl w-full">View Public Profile</Button>
               </Link>
             </CardContent>

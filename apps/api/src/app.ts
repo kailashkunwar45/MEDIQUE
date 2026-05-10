@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+
 import authRoutes from './routes/auth.routes';
 import appointmentRoutes from './routes/appointment.routes';
 import queueRoutes from './routes/queue.routes';
@@ -28,7 +30,11 @@ const limiter = rateLimit({
 
 app.use(express.json());
 app.use(cors());
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable CSP for easier frontend integration in this setup
+  })
+);
 app.use(morgan('dev'));
 app.use(limiter);
 
@@ -46,6 +52,15 @@ app.use('/api/super-admin', superAdminRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'MediQueue API is running' });
+});
+
+// Serve static files from the Next.js export
+const webOutPath = path.join(__dirname, '../../web/out');
+app.use(express.static(webOutPath));
+
+// Fallback for SPA routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(webOutPath, 'index.html'));
 });
 
 export default app;

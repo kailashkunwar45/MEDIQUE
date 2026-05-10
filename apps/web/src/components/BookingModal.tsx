@@ -69,7 +69,7 @@ export default function BookingModal({
   // Load specializations available at this hospital
   useEffect(() => {
     if (!preHospitalId || preDoctorId) return;
-    fetch(`${API}/api/hospitals/${preHospitalId}/doctors`)
+    fetch(`${API}/api/hospitals/detail?id=${preHospitalId}/doctors`)
       .then(r => r.json())
       .then((docs: Doctor[]) => {
         if (!Array.isArray(docs)) return;
@@ -82,7 +82,7 @@ export default function BookingModal({
   // Load doctors for selected spec at this hospital
   useEffect(() => {
     if (!preHospitalId || !selectedSpec || preDoctorId) return;
-    fetch(`${API}/api/hospitals/${preHospitalId}/doctors`)
+    fetch(`${API}/api/hospitals/detail?id=${preHospitalId}/doctors`)
       .then(r => r.json())
       .then((docs: Doctor[]) => {
         if (!Array.isArray(docs)) return;
