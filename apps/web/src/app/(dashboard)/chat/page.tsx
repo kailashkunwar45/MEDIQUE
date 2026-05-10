@@ -349,18 +349,14 @@ export default function GlobalChatPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="relative group/menu">
-                    <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900 rounded-xl transition-colors"><MoreVertical className="w-4 h-4" /></Button>
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 hidden group-hover/menu:block z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); deleteHistory(); }}
-                         className="w-full px-4 py-2 text-left text-[10px] font-black text-rose-500 hover:bg-rose-50 transition-colors uppercase tracking-widest flex items-center gap-2"
-                       >
-                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                         Delete History
-                       </button>
-                    </div>
-                  </div>
+                  <Button 
+                    variant="ghost" 
+                    onClick={deleteHistory}
+                    className="h-10 rounded-xl px-4 text-[10px] font-black text-rose-500 hover:bg-rose-50 transition-all uppercase tracking-widest flex items-center gap-2 border border-rose-100 shadow-sm"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                    Clear Chat
+                  </Button>
                 </div>
               </div>
 
