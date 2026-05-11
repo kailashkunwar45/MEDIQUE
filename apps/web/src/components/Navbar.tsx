@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User, LogOut, LayoutDashboard } from "lucide-react";
+import { MessageSquare, User, LogOut, LayoutDashboard, Clock, Activity, History } from "lucide-react";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { usePathname } from "next/navigation";
 
@@ -65,6 +65,31 @@ export function Navbar({ session }: NavbarProps) {
               <LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard
             </Button>
           </Link>
+
+          {session?.role === "doctor" && (
+            <>
+              <Link href="/doctor?tab=requests">
+                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
+                  <Clock className="w-4 h-4 mr-2" /> Requests
+                </Button>
+              </Link>
+              <Link href="/doctor?tab=chat-requests">
+                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
+                  <MessageSquare className="w-4 h-4 mr-2" /> Chat Req
+                </Button>
+              </Link>
+              <Link href="/doctor?tab=current">
+                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
+                  <Activity className="w-4 h-4 mr-2" /> Active Encounters
+                </Button>
+              </Link>
+              <Link href="/doctor?tab=past">
+                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
+                  <History className="w-4 h-4 mr-2" /> Historical Archive
+                </Button>
+              </Link>
+            </>
+          )}
 
           <Link href="/chat">
             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">

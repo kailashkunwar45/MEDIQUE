@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Navbar } from "@/components/Navbar";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Stethoscope, 
   Building2, 
@@ -123,6 +124,23 @@ export default function DoctorDashboard() {
   const globalSocketRef = useRef<Socket | null>(null);
   const chatEndRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const openChatIdsRef = useRef<string[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "requests");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["requests", "chat-requests", "current", "past"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", value);
+    router.push(`/doctor?${params.toString()}`);
+  };
 
   useEffect(() => {
     openChatIdsRef.current = openChatIds;
@@ -580,7 +598,7 @@ export default function DoctorDashboard() {
           {error && <div className="p-6 bg-rose-50 text-rose-600 rounded-[20px] font-black text-[10px] uppercase tracking-widest border border-rose-100 shadow-sm animate-pulse">{error}</div>}
           {info && <div className="p-6 bg-emerald-50 text-emerald-600 rounded-[20px] font-black text-[10px] uppercase tracking-widest border border-emerald-100 shadow-sm">{info}</div>}
 
-          <Tabs defaultValue="requests" className="space-y-10">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-10">
             <TabsList className="bg-white p-1 rounded-[16px] border border-slate-200 shadow-xl flex flex-wrap w-fit gap-1">
               <TabsTrigger value="requests" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all">
                 Requests {pending.length > 0 && `[${pending.length}]`}
