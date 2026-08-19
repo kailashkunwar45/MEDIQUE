@@ -17,12 +17,36 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 const redis = require("redis");
 let redisClient = null;
+let redisFailed = false;
+
 const getRedisClient = async () => {
-  if (!process.env.REDIS_URL) return null;
+  if (!process.env.REDIS_URL || redisFailed) return null;
   if (!redisClient) {
-    redisClient = (redis.createClient)({ url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD });
-    redisClient.on("error", (err) => console.log("Cache Redis Error", err));
-    await redisClient.connect();
+    try {
+      redisClient = redis.createClient({
+        url: process.env.REDIS_URL,
+        password: process.env.REDIS_PASSWORD,
+        socket: {
+          reconnectStrategy: (retries) => {
+            if (retries > 1) {
+              return new Error("Cache Redis connection failed");
+            }
+            return 500;
+          }
+        }
+      });
+      redisClient.on("error", (err) => {
+        if (!redisFailed) {
+          console.warn("Cache Redis Error:", err.message);
+          redisFailed = true;
+          redisClient?.disconnect().catch(() => {});
+        }
+      });
+      await redisClient.connect();
+    } catch {
+      redisFailed = true;
+      return null;
+    }
   }
   return redisClient;
 };

@@ -17,15 +17,39 @@ const initSocket = async (server) => {
   });
   if (process.env.REDIS_URL) {
     try {
-      const pubClient = (redis.createClient)({ url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD });
+      const pubClient = redis.createClient({
+        url: process.env.REDIS_URL,
+        password: process.env.REDIS_PASSWORD,
+        socket: {
+          reconnectStrategy: (retries) => {
+            if (retries > 2) {
+              return new Error("Redis connection failed");
+            }
+            return 500;
+          }
+        }
+      });
       const subClient = pubClient.duplicate();
-      pubClient.on("error", (err) => console.log("Redis Pub Client Error", err.message));
-      subClient.on("error", (err) => console.log("Redis Sub Client Error", err.message));
+
+      let redisFailed = false;
+      const onError = (type, err) => {
+        if (!redisFailed) {
+          console.warn(`Redis ${type} Client Error: ${err.message}. Falling back to in-memory mode.`);
+          redisFailed = true;
+          pubClient.disconnect().catch(() => {});
+          subClient.disconnect().catch(() => {});
+        }
+      };
+
+      pubClient.on("error", (err) => onError("Pub", err));
+      subClient.on("error", (err) => onError("Sub", err));
+
       await Promise.race([
         Promise.all([pubClient.connect(), subClient.connect()]),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Redis connection timeout")), 2000))
       ]);
-      io.adapter((redis_adapter.createAdapter)(pubClient, subClient));
+
+      io.adapter(redis_adapter.createAdapter(pubClient, subClient));
       console.log("Socket.io Redis adapter enabled");
     } catch (e) {
       console.log("Redis connection failed, running Socket.io in memory mode:", e.message);
