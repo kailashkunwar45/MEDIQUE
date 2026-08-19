@@ -1,0 +1,148 @@
+MEDIQUEUE MONOLITHIC SYSTEM EXPLANATION
+=======================================
+
+1. SYSTEM INTRODUCTION & PROJECT VISION
+---------------------------------------
+MediQueue is a state-of-the-art medical resource orchestration and real-time patient queue management platform designed for modern, high-throughput healthcare environments. Developed as a monorepo, it addresses the traditional inefficiencies of clinical workflows, patient scheduling, billing bottlenecks, and real-time communication gaps in hospitals, medical clinics, and private practices. By introducing a structured multi-tier role-based system—spanning Patients, Doctors, Hospital Admins, and Super Admins—MediQueue streamlines the entire healthcare lifecycle from initial provider search to post-consultation patient care.
+
+In developing countries and localized medical ecosystems, particularly inside Nepal, patient congestion, lack of transparency in queue wait times, and offline payment delays present severe operational challenges. Patients often travel long distances and wait for hours in crowded hospital corridors without knowing when they will be seen by a doctor. MediQueue solves these problems by providing real-time transparency. It integrates localized digital payment gateways (Khalti and eSewa) for upfront transaction processing, alongside live queue tickers driven by Socket.io, providing patients with accurate, real-time wait times and status updates. This keeps patients informed and prevents crowded waiting rooms, allowing patients to wait comfortably outside or arrive exactly when their token is active. This direct visual feedback loop reduces operational chaos, optimizes clinical occupancy, and improves the overall patient experience.
+
+2. SYSTEM ARCHITECTURE & MONOREPO STRUCTURE
+-------------------------------------------
+MediQueue is built using a modern monorepo configuration that hosts both the frontend and the backend codebases in a single, unified repository. This structure is partitioned under the root directory in the `apps` folder, containing two principal sub-projects:
+- `apps/web`: The user-facing client application built on the Next.js 14 framework.
+- `apps/api`: The server-side API application built on Node.js, Express, and TypeScript.
+
+Below is an overview of the directory tree and project layout:
+- Root Level: Holds the workspace-wide package.json and workspace runner scripts. It defines dependency relationships and maps scripts for concurrent builds.
+- `apps/web/src`: Contains the app directory (implementing the Next.js App Router), the components directory (housing reusable UI cards, forms, buttons, and custom shadcn inputs), the hooks directory (handling custom query and state hooks), and the lib directory (storing utility functions like tailwind-merge and cn helpers).
+- `apps/api/src`: Contains the routes directory (API path declarations), the controllers directory (business logic implementations), the models directory (Mongoose definitions), the middlewares directory (JWT decoding, roles verification, rate-limiter profiles), the socket directory (real-time namespaces and listeners), and the services directory (communication and external API adapters).
+
+The Next.js frontend utilizes React 18, TypeScript, and Tailwind CSS to implement a high-fidelity visual experience. Responsive dashboards are animated with Framer Motion, styled with Shadcn UI, and manage server state using TanStack React Query. The frontend communicates with the backend via REST endpoints and Socket.io client connections, keeping pages interactive and synced in real-time.
+
+The backend Express application acts as the orchestration engine. Written in TypeScript and compiled via `tsc`, it incorporates security tools like Helmet and Express Rate Limit, uses Morgan for request logging, and handles data validation using Zod schemas. For database communication, it uses Mongoose to connect to MongoDB. For real-time updates, it integrates Socket.io, backed by a Redis pub/sub adapter (via ioredis) to distribute events across multiple server instances.
+
+A unique aspect of the monolithic production build is that the Express server hosts the API and also serves the static web assets of the Next.js application. During compilation, the Next.js app is exported to static files inside `apps/web/out`. The backend Express server mounts these static files using `express.static()` and implements a fallback route to serve `index.html` for client-side routing. This simplifies deployments to platforms like Render, where a single web service can run both the API and client interface.
+
+3. DATABASE MODELS & SCHEMA SPECIFICATION
+-----------------------------------------
+The data layer is modeled using Mongoose schemas. Each model enforces strict data types, relations, and indexes to support the business rules:
+
+A. User Model (user.model.ts)
+Represents all physical actors in the system. The roles are defined by the `UserRole` enum: 'patient', 'doctor', 'hospital_admin', and 'super_admin'. It stores credentials with bcryptjs hashing, tracks onboarding via `isOnboarded`, holds verification and admin approval flags, and maintains references to hospitals. For doctors, it stores professional profiles (specialization, bio, degree, experienceYears, previousWork) and a `pendingFeeUpdate` object to manage fee changes. It supports multi-hospital association through the `hospitalIds` array and tracks pending/approved statuses in `hospitalApprovals`.
+
+B. Hospital Model (hospital.model.ts)
+Represents the medical facilities registered on the platform. It tracks name, address, contact email, contact phone, subscription tier ('free', 'pro', 'premium'), active status, certification URL, and lists of services. It also supports admin-level features like banning (`isBanned`) with detailed reasons (`banReason`).
+
+C. Subscription Model (subscription.model.ts)
+Manages limits and pricing for hospitals. Tiers define limits on doctors and appointments (e.g., Free tier: max 3 doctors, 50 appointments/day; Pro: 15 doctors, 500 appointments/day; Premium: unlimited). It tracks status, start/end dates, monthly fees, and limits.
+
+D. Appointment Model (appointment.model.ts)
+Models the encounter lifecycle. It references the patient, doctor, and hospital. It contains date, status (pending, confirmed, completed, cancelled, declined), payment method ('online', 'pay_later'), payment status ('paid', 'unpaid'), token number, hospital-locking flags (to prevent changing hospitals after confirmation), doctor clinical notes, and soft-delete flags (`patientDeleted` and `doctorDeleted`) for independent history clearing.
+
+E. Queue Model (queue.model.ts)
+Tracks the token progression of a doctor at a specific hospital on a given day. It maps the doctor, hospital, and date to `currentToken` (currently being treated) and `totalTokens` (total booked for the day).
+
+F. Payment Model (payment.model.ts)
+Records transactions. Links patients and appointments to payments, storing provider ('khalti', 'esewa'), amount, transactionId, providerReferenceId, and transaction status ('pending', 'success', 'failed', 'refunded').
+
+G. ChatConnection (chatConnection.model.ts) & ChatMessage (chatMessage.model.ts)
+Manages communication logs and permissions. `ChatConnection` tracks the authorization of post-consultation chats, while `ChatMessage` stores message text, sender identifiers, roles, and timestamps.
+
+H. Review Model (review.model.ts)
+Allows patients to review doctors and hospitals, storing ratings (1-5), comments, and target types.
+
+4. CORE FUNCTIONALITIES & BUSINESS RULES
+-----------------------------------------
+MediQueue implements strict workflows to ensure security and operational efficiency:
+
+A. Multi-Stage Doctor Registration & Approval
+A doctor cannot register and immediately start receiving appointments. First, they register with an email and password. Second, they complete their profile onboarding, selecting the hospitals they are associated with. Third, the respective hospital admin must approve the association. Finally, the Super Admin must review their credentials and globally approve the doctor. Only after these approvals does the doctor appear in patient search results.
+
+B. Scheduling & Queue Booking Constraints
+To prevent system overload and doctor burnout, the system limits bookings. A doctor can have at most 8 bookings per day. Furthermore, patients are restricted to one booking per doctor within a 24-hour period to prevent duplicate bookings.
+
+C. Real-Time Ticket Sequencing & Next-Patient Call
+When a patient books an appointment, they receive a ticket containing a token number corresponding to the doctor's queue size. During clinic hours, the doctor uses the `callNextPatient` endpoint. This increments the queue's `currentToken` and sets the previous appointment to 'completed'. The backend then:
+1. Queries the next appointment in sequence.
+2. Triggers the Notification Service to notify the next patient.
+3. Broadcasts the update via Socket.io to all clients viewing the queue.
+
+D. Closed-Loop Post-Consultation Chat
+Communication is restricted to protect doctor privacy. A chat room opens only when an appointment is 'confirmed'. Once the doctor completes the appointment, the chat is disabled. However, if the patient needs post-consultation care, the patient can request reconnection. If the doctor accepts, a `ChatConnection` is set to 'active', allowing them to chat for a limited time. Chat is disabled for cancelled or declined bookings.
+
+E. Dual Payment Gateway Integration (Khalti & eSewa)
+The platform integrates Nepal's leading payment gateways. Patients can choose online payment or pay-later.
+- Khalti: The backend creates a payment record and returns a redirect URL. Upon payment, the client receives a payment token, which the backend verifies using Khalti's verification APIs to update the appointment to 'paid' and confirm the booking.
+- eSewa: Integrates with eSewa's transaction parameters. The API constructs redirect URLs, and after payment, verifies the transaction status to update the database.
+If a patient cancels a pre-paid appointment, the payment status is marked forfeited (no refund) to protect the provider's schedule.
+
+F. Administrative Controls & Global Management
+Super Admins have full visibility. They can approve/reject hospital registrations, onboard new facilities, and ban users/hospitals. They also oversee doctor fee changes. If a doctor requests a fee update, the request goes to the Super Admin. Super Admins can also trigger bulk fee updates across all doctors on the platform.
+
+5. SOCKET.IO ORCHESTRATION & REDIS SCALABILITY
+----------------------------------------------
+The real-time elements are powered by Socket.io. The server listens for socket connections, decodes the JWT token to identify the user, and manages room memberships:
+- `queue_{hospitalId}_{doctorId}`: Clients join this room to watch the live queue. When `callNextPatient` is triggered, the server emits a `queueUpdated` payload to this room, updating all screens instantly.
+- `chat_{appointmentId}`: Restricts chat access to the assigned patient and doctor. Before joining, the server verifies the JWT and checks the appointment status.
+- `user_{userId}`: A global room for each user to receive real-time notifications (e.g., when a doctor confirms an appointment or sends a message, or when a super admin updates fees).
+
+For multi-instance scalability, Socket.io is configured with a Redis adapter. By linking Socket.io to a Redis database using `ioredis`, event emissions are shared across all cluster instances. If a doctor on Instance A calls the next patient, the update is published to Redis and broadcast to patients on Instance B, preventing synchronized disconnects.
+
+6. NOTIFICATION ENGINE & CHANNELS
+---------------------------------
+MediQueue includes a notification service. It handles three communication channels:
+1. Email Notifications: Configured with SendGrid. Used for critical transactions, like registration, appointment confirmations, and waitlist alerts.
+2. SMS Alerts: Mocked for development, with stubs for Twilio integration. Sends text messages to patients when they are next in queue.
+3. WhatsApp Notifications: Configured for Meta's WhatsApp Business API, allowing clinics to send reminders directly to patients' phones.
+
+This multi-channel fallback ensures that patients receive alerts even if they lack an active internet connection. This is vital in remote areas of Nepal where cellular data might be intermittent but standard SMS or offline caching works consistently.
+
+7. ANALYTICS & INSIGHT GENERATION
+---------------------------------
+Data analytics help administrators monitor hospital operations:
+- Hospital Stats: The dashboard aggregates total doctors, active patients, and appointment outcomes (pending, confirmed, completed, cancelled, declined) using MongoDB aggregation pipelines.
+- Doctor Stats: Tracks individual metrics, including ratings, reviews, and appointment distribution.
+- Global Platform Stats: Super Admins monitor hospital growth, doctor-to-patient ratios, and transaction volumes, helping them manage platform subscriptions.
+
+By employing MongoDB aggregate commands, the system calculates these stats in real-time, displaying them using Recharts on the frontend, featuring clean interactive area charts, bar graphs, and status breakdown tables.
+
+8. DETAILED COMPONENT LAYOUTS & USER PORTALS
+--------------------------------------------
+MediQueue provides four custom portals:
+- Patient Dashboard: Allows patients to search for verified doctors by specialty, filter by affiliated hospitals, book appointments, make digital payments, view active tokens, view current wait statuses, rate their consultation, and chat with doctors during their active session.
+- Doctor Dashboard: Designed for tablets and desktop screens. Enables doctors to view their schedule, accept or decline pending appointments, update their onsite fee structure, write clinical notes, call the next patient, and review patient billing status.
+- Hospital Admin Portal: Features registration controls, onboarding fields for equipment and services, subscription upgrades, doctor list verification, and statistics on daily hospital activity.
+- Super Admin Command Center: Provides a single interface to manage all platform components. Super Admins can monitor global statistics, approve new hospitals and doctors, manage fee updates, and ban problematic users or facilities.
+
+9. SEED SCRIPTS & UTILITY SCRIPTS
+---------------------------------
+To simplify developer onboarding and testing, several seed scripts are provided in `apps/api`:
+- `create-admin.js`: Sets up initial super admin accounts and seeds mock hospitals for testing.
+- `create_test_appointments.js`: Populates the database with dummy appointments, reviews, and transaction records across various dates, allowing developers to test the analytics engine without manual entry.
+- `delete-users.js`: A cleanup utility to reset database user collections during development cycles.
+
+10. TECHNICAL STACK & UTILITIES
+------------------------------
+MediQueue is built using a modern, type-safe stack:
+- Next.js 14: Handles server-side rendering, routing, and optimization.
+- React Query: Simplifies client-side fetching, caching, and background synchronization.
+- Tailwind CSS & Framer Motion: Powers the UI, providing clean styling and smooth transitions.
+- Mongoose: Provides schema validation and database query building.
+- Socket.io: Enables bidirectional communication.
+- Redis: Manages session variables and pub/sub adapters.
+- Zod: Enforces schema validation on backend APIs.
+- ts-node-dev: Enables fast TypeScript compilation and reloading during development.
+
+11. DEVELOPMENT & RUNTIME OPERATIONS
+-----------------------------------
+A standard setup requires configuring the environment files:
+- `apps/api/.env`: Sets port, mongo connection strings, JWT secret, Redis URL, SendGrid keys, and eSewa merchant codes.
+- `apps/web/.env.local`: Sets the backend API URL.
+
+The package scripts streamline the build process:
+- `npm run dev`: Runs the Next.js client and the Express backend concurrently in development mode.
+- `npm run build`: Compiles the Express application into JavaScript and exports the Next.js client as static assets into `apps/web/out`.
+- `npm run start`: Boots up the production Node.js process using the compiled files.
+
+By using this setup, MediQueue delivers a reliable, real-time, and localized healthcare orchestration platform. From Nepalese payment gateway integration to live ticket sequencing and multi-tier access control, the platform provides a modern solution to healthcare scheduling and queue management.

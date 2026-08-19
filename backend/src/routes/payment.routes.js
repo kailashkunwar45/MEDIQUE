@@ -1,0 +1,10 @@
+const express = require("express");
+const payment = require("../controllers/payment.controller");
+const auth = require("../middlewares/auth.middleware");
+const user = require("../models/user.model");
+const router = express.Router();
+router.post("/khalti/initiate", auth.protect, (auth.authorize)(user.UserRole.PATIENT), payment.initiateKhaltiPayment);
+router.post("/khalti/verify", auth.protect, (auth.authorize)(user.UserRole.PATIENT), payment.verifyKhaltiPayment);
+router.post("/esewa/initiate", auth.protect, (auth.authorize)(user.UserRole.PATIENT), payment.initiateEsewaPayment);
+router.post("/esewa/verify", auth.protect, (auth.authorize)(user.UserRole.PATIENT), payment.verifyEsewaPayment);
+module.exports = router;

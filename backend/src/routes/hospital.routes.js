@@ -1,0 +1,11 @@
+const express = require("express");
+const hospital = require("../controllers/hospital.controller");
+const auth = require("../middlewares/auth.middleware");
+const user = require("../models/user.model");
+const router = express.Router();
+router.get("/", hospital.listHospitals);
+router.get("/:hospitalId", hospital.getHospitalById);
+router.get("/:hospitalId/doctors", hospital.listHospitalDoctors);
+router.post("/:hospitalId/reviews", auth.protect, (auth.authorize)(user.UserRole.PATIENT), hospital.rateHospital);
+router.get("/:hospitalId/reviews", hospital.getHospitalReviews);
+module.exports = router;

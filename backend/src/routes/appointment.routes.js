@@ -1,0 +1,17 @@
+const express = require("express");
+const appointment = require("../controllers/appointment.controller");
+const auth = require("../middlewares/auth.middleware");
+const user = require("../models/user.model");
+const router = express.Router();
+router.post("/", auth.protect, (auth.authorize)(user.UserRole.PATIENT), appointment.bookAppointment);
+router.get("/my", auth.protect, (auth.authorize)(user.UserRole.PATIENT), appointment.getPatientAppointments);
+router.post("/cancel", auth.protect, (auth.authorize)(user.UserRole.PATIENT), appointment.cancelAppointment);
+router.get("/doctor", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.getDoctorAppointments);
+router.post("/accept", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.acceptAppointment);
+router.post("/complete", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.completeAppointment);
+router.post("/decline", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.declineAppointment);
+router.put("/change-hospital", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.changeAppointmentHospital);
+router.put("/:id/payment-status", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), appointment.togglePaymentStatus);
+router.delete("/history", auth.protect, appointment.deleteHistoryAppointments);
+router.get("/:id", auth.protect, appointment.getAppointmentById);
+module.exports = router;

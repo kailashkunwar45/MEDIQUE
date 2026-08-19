@@ -1,0 +1,12 @@
+const express = require("express");
+const user = require("../controllers/user.controller");
+const auth = require("../middlewares/auth.middleware");
+const user2 = require("../models/user.model");
+const router = express.Router();
+router.get("/me", auth.protect, user.getMe);
+router.put("/me", auth.protect, user.updateMe);
+router.post("/onboard", auth.protect, (auth.authorize)(user2.UserRole.DOCTOR), user.onboardDoctor);
+router.post("/request-fee-update", auth.protect, (auth.authorize)(user2.UserRole.DOCTOR), user.requestFeeUpdate);
+router.get("/doctors", user.listAllDoctors);
+router.get("/doctors/:id", user.getDoctorProfile);
+module.exports = router;

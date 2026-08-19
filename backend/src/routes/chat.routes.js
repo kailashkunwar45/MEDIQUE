@@ -1,0 +1,16 @@
+const express = require("express");
+const chat = require("../controllers/chat.controller");
+const auth = require("../middlewares/auth.middleware");
+const user = require("../models/user.model");
+const router = express.Router();
+router.use(auth.protect);
+router.post("/request", (auth.authorize)(user.UserRole.PATIENT), chat.requestChat);
+router.post("/respond", (auth.authorize)(user.UserRole.DOCTOR), chat.respondToChatRequest);
+router.post("/reconnect", (auth.authorize)(user.UserRole.DOCTOR), chat.reconnectWithPatient);
+router.get("/pending-requests", (auth.authorize)(user.UserRole.DOCTOR), chat.getPendingChatRequests);
+router.get("/status", chat.getChatConnectionStatus);
+router.get("/conversations", chat.getConversations);
+router.post("/mark-read", chat.markAsRead);
+router.post("/clear-history", chat.clearChatHistory);
+router.get("/:appointmentId/messages", chat.getMessages);
+module.exports = router;

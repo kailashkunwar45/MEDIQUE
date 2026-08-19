@@ -1,0 +1,112 @@
+================================================================================
+MEDIQUEUE: SECURITY & PRIVACY SPECIFICATION REPORT
+================================================================================
+
+1. SYSTEM ARCHITECTURE & DATA FLOW PRIVACY
+--------------------------------------------------------------------------------
+MediQueue is built as a monolithic repository partitioned into:
+- apps/web: A Next.js client-side application.
+- apps/api: An Express.js backend API with MongoDB/Mongoose.
+
+Data flow is kept secure by keeping all database transactions and clinical records
+behind the Express backend boundary. Direct access to MongoDB is prohibited, and
+the database is placed in a secure network zone with access restricted to the
+Express API servers.
+
+
+2. IDENTITY & SESSION MANAGEMENT
+--------------------------------------------------------------------------------
+Authentication is implemented using stateless JSON Web Tokens (JWTs) generated
+upon user login.
+- Password Hashing: User passwords are encrypted prior to database insertion
+  using bcryptjs. The raw password is never stored or logged.
+- Session Security: JWTs are passed via the standard HTTP Authorization header
+  as "Bearer <token>". This protects against Cross-Site Request Forgery (CSRF)
+  compared to standard cookie-based structures when properly configured.
+- Middleware Reference: apps/api/src/middlewares/auth.middleware.ts
+
+
+3. ROLE-BASED ACCESS CONTROL (RBAC)
+--------------------------------------------------------------------------------
+MediQueue operates under a strict four-tier hierarchy:
+1. Patient: Can search for doctors, book appointments, make payments, and view 
+   their active queues.
+2. Doctor: Can manage schedules, accept/decline appointments, input clinical
+   notes, and advance patient tokens in real time.
+3. Hospital Admin: Manages hospital details, verifies affiliated doctors,
+   and views daily hospital operational statistics.
+4. Super Admin: Exercises global control, including approval/rejection of hospitals,
+   approvals of doctor listings, managing system-wide fee structures, and banning 
+   problematic entities.
+
+Access to endpoints is restricted by matching the token role parameter against the
+allowed endpoints using the `authorize` middleware:
+`app.use('/api/super-admin', protect, authorize('super_admin'), superAdminRoutes);`
+
+
+4. NETWORK & API APPLICATION SECURITY
+--------------------------------------------------------------------------------
+The API server employs standard security headers and rate limits:
+- Helmet: Used to secure Express apps by setting various HTTP headers (such as
+  X-Content-Type-Options, X-Frame-Options, and Strict-Transport-Security) to prevent
+  clickjacking, MIME sniffing, and downgrade attacks.
+- Express Rate Limit: Configured globally to limit request volume per IP address
+  (configured for 1000 requests per minute per IP to support high-frequency real-time
+  updates).
+- CORS: Explicitly configured to restrict incoming cross-origin requests to trusted
+  frontends.
+
+
+5. PATIENT CONSULTATION & CHAT PRIVACY (CLOSED-LOOP PROTOCOL)
+--------------------------------------------------------------------------------
+To protect doctor privacy and maintain patient record confidentiality, chat rooms are
+fully restricted:
+- Active Windows: Sockets and messages can only be initialized and accessed if there
+  is a `confirmed` appointment status between the patient and the doctor.
+- Closed Loop: When the appointment is completed, cancelled, or declined, the chat
+  is immediately disabled.
+- Post-Consultation Reconnection: If a patient needs follow-up chat, they must send a
+  `pending` connection request. The doctor must explicitly approve the request before
+  a temporary communication tunnel is re-established.
+- Endpoint Controls: In `chat.controller.ts`, every query to retrieve messages
+  (`getMessages`) or clear history (`clearChatHistory`) verifies that the requesting
+  user is the actual participant (`patientId` or `doctorId`) of the appointment.
+
+
+6. MEDICAL RECORD ACCESS & THE "RIGHT TO BE FORGOTTEN"
+--------------------------------------------------------------------------------
+Under medical regulations like HIPAA and privacy guidelines like GDPR, users must
+have control over their history and sensitive data:
+- Soft Deletes: The `Appointment` schema provides `patientDeleted` and `doctorDeleted`
+  boolean flags. When a patient or doctor deletes an appointment from their history,
+  it is hidden from their respective dashboard without mutating the underlying data
+  history required for hospital auditing, compliance, and billing verification.
+- Sensitive Fields: Clinical notes are stored in `doctorNotes` within the Appointment
+  collection. Access is restricted to the specific doctor and patient.
+- Chat Purges: The database allows either participant to request a hard delete of the 
+  `ChatMessage` collection corresponding to their appointment ID.
+
+
+7. PAYMENT COMPLIANCE (KHALTI & ESEWA)
+--------------------------------------------------------------------------------
+Transactions are conducted via Nepal-based payment gateways (Khalti and eSewa).
+- Server-to-Server Verification: To prevent transaction spoofing (e.g., client-side
+  amount manipulation), MediQueue executes server-to-server validation.
+- Payment Credentials: API tokens, public/secret merchant keys, and credentials are
+  configured strictly through environment variables (`apps/api/.env`) and never exposed
+  on the client side or logged in standard application output.
+
+
+8. RECOMMENDATIONS FOR ENTERPRISE COMPLIANCE (HIPAA/GDPR)
+--------------------------------------------------------------------------------
+To transition the current codebase into a fully production-ready, HIPAA/GDPR compliant environment,
+the following additions are recommended:
+1. Data Encryption at Rest: Ensure MongoDB collections containing PII (names, emails, phones)
+   and PHI (doctorNotes, chat messages) are encrypted using AES-256.
+2. Detailed Audit Logging: Log all read/write accesses to appointment records and doctor notes,
+   storing the timestamp, accessing user, and action performed (crucial for HIPAA audits).
+3. Session Expirations: Enforce short-lived JWT expiry intervals with refresh token rotation.
+4. Secure Storage of Clinical Attachments: If adding features to upload prescriptions or PDFs,
+   use cloud storage buckets (like AWS S3) with Server-Side Encryption (SSE) and generate
+   Pre-signed URLs with short expiry windows (e.g., 5-15 minutes) for patient access.
+================================================================================

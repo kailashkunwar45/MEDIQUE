@@ -1,0 +1,12 @@
+const express = require("express");
+const hospitalAdmin = require("../controllers/hospitalAdmin.controller");
+const auth = require("../middlewares/auth.middleware");
+const user = require("../models/user.model");
+const router = express.Router();
+router.get("/doctor/stats", auth.protect, (auth.authorize)(user.UserRole.DOCTOR), hospitalAdmin.getDoctorStats);
+router.post("/onboard", auth.protect, (auth.authorize)(user.UserRole.HOSPITAL_ADMIN), hospitalAdmin.onboardHospital);
+router.get("/doctors", auth.protect, (auth.authorize)(user.UserRole.HOSPITAL_ADMIN), hospitalAdmin.getHospitalDoctors);
+router.get("/patients", auth.protect, (auth.authorize)(user.UserRole.HOSPITAL_ADMIN), hospitalAdmin.getHospitalPatients);
+router.get("/upcoming", auth.protect, (auth.authorize)(user.UserRole.HOSPITAL_ADMIN), hospitalAdmin.getHospitalUpcomingBookings);
+router.get("/stats", auth.protect, (auth.authorize)(user.UserRole.HOSPITAL_ADMIN), hospitalAdmin.getHospitalStats);
+module.exports = router;
