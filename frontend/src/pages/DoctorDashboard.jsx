@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Navbar } from "@/components/Navbar";
 import { useRouter } from "@/hooks/useRouter";
 import { useSearchParams } from "@/hooks/useSearchParams";
-import { Stethoscope, Clock, History, MessageSquare, ShieldCheck, Zap, Activity, Bell, Trash2 } from "lucide-react";
+import { Stethoscope, Clock, History, MessageSquare, ShieldCheck, Zap, Activity, Bell, Trash2, User, LogOut } from "lucide-react";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { Badge } from "@/components/ui/badge";
 function StatusBadge({ status }) {
     const map = {
@@ -49,6 +50,7 @@ export default function DoctorDashboard() {
     const [chatRequests, setChatRequests] = useState([]);
     const [unreadCounts, setUnreadCounts] = useState({});
     const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
+    const { totalUnread } = useUnreadCount(session?.accessToken);
     const socketRef = useRef(null);
     const globalSocketRef = useRef(null);
     const chatEndRefs = useRef({});
@@ -425,7 +427,20 @@ export default function DoctorDashboard() {
     };
     const pending = appointments.filter((a) => a.status === "pending");
     const confirmed = appointments.filter((a) => a.status === "confirmed");
-    const past = appointments.filter((a) => a.status === "completed");
+    const past = appointments.filter((a) => a.status === "completed" || a.status === "declined" || a.status === "cancelled");
+
+    // 24-Hour Reset Capacity calculation (resets every 24h)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const todayAppointments = appointments.filter((a) => {
+        const d = new Date(a.date);
+        return d >= todayStart && d < todayEnd && a.status !== "cancelled" && a.status !== "declined";
+    });
+    const maxDailyCapacity = 8;
+    const capacityCount = todayAppointments.length;
+    const capacityPercent = Math.min(100, Math.round((capacityCount / maxDailyCapacity) * 100));
+
     if (session && session.isApprovedBySuperAdmin === false) {
         return (<div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6 text-slate-900">
         <Card className="max-w-md w-full rounded-[32px] border-none shadow-[0_20px_60px_rgba(15,23,42,0.1)] bg-white p-12 text-center space-y-8 animate-in fade-in zoom-in duration-500">
@@ -450,6 +465,39 @@ export default function DoctorDashboard() {
 
       <div className="max-w-7xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-4 gap-10">
         <div className="lg:col-span-1 space-y-8">
+           {/* Doctor Profile Card */}
+           <Card className="rounded-[24px] border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.05)] bg-white overflow-hidden p-6 space-y-6">
+              <div className="flex items-center gap-5">
+                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] flex items-center justify-center text-xl font-black text-white shadow-xl shadow-[#1E3A8A]/20 shrink-0">
+                    {session?.name ? session.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase() : "DR"}
+                 </div>
+                 <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-black text-[#0F172A] tracking-tight truncate uppercase">Dr. {session?.name || "Specialist"}</h2>
+                    <div className="mt-1">
+                       <span className="bg-indigo-50 text-[#1E3A8A] border border-indigo-100 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-block truncate max-w-full">
+                          {session?.specialization || "Doctor"}
+                       </span>
+                    </div>
+                    {session?.email && (
+                       <p className="text-[10px] text-slate-400 font-bold tracking-tight truncate mt-1">
+                          {session.email}
+                       </p>
+                    )}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                 <Link to="/profile" className="w-full">
+                    <Button variant="outline" className="w-full rounded-[14px] text-[10px] font-black uppercase tracking-widest border-slate-200 hover:bg-slate-50 text-[#0F172A] py-5">
+                       <User className="w-3.5 h-3.5 mr-1.5 text-[#1E3A8A]"/> Profile
+                    </Button>
+                 </Link>
+                 <Button variant="ghost" className="w-full rounded-[14px] text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-50 hover:text-rose-600 py-5" onClick={logout}>
+                    <LogOut className="w-3.5 h-3.5 mr-1.5"/> Log Out
+                 </Button>
+              </div>
+           </Card>
+
            <Card className="rounded-[24px] border border-slate-200 shadow-[0_10px_40px_rgba(15,23,42,0.05)] bg-white overflow-hidden">
               <CardHeader className="bg-slate-50/50 pb-4 border-b border-slate-100">
                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-[#1E3A8A]">Clinical Overview</CardTitle>
@@ -516,16 +564,20 @@ export default function DoctorDashboard() {
                  </div>
 
                  <div className="pt-8 border-t border-slate-50">
-                    <p className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">Load Distribution</p>
+                    <div className="flex items-center justify-between mb-3">
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">24H Capacity Cycle</p>
+                       <span className="text-[8px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">Resets 24H</span>
+                    </div>
                     <div className="space-y-6">
                        <div className="space-y-2">
                           <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
-                             <span className="text-emerald-600">Confirmed Capacity</span>
-                             <span className="text-[#0F172A]">{confirmed.length + pending.length > 0 ? Math.round((confirmed.length / (confirmed.length + pending.length)) * 100) : 0}%</span>
+                             <span className="text-emerald-600">Daily Slots Used</span>
+                             <span className="text-[#0F172A]">{capacityCount} / {maxDailyCapacity} ({capacityPercent}%)</span>
                           </div>
                           <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
-                             <div className="bg-[#1E3A8A] h-full transition-all duration-1000" style={{ width: `${(confirmed.length / (confirmed.length + pending.length || 1)) * 100}%` }}/>
+                             <div className="bg-[#1E3A8A] h-full transition-all duration-1000" style={{ width: `${capacityPercent}%` }}/>
                           </div>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider text-right">Daily Limit: 8 Patients/24H</p>
                        </div>
                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-[16px] border border-slate-100">
                           <ShieldCheck className="w-4 h-4 text-[#D4AF37]"/>
@@ -542,7 +594,7 @@ export default function DoctorDashboard() {
           {info && <div className="p-6 bg-emerald-50 text-emerald-600 rounded-[20px] font-black text-[10px] uppercase tracking-widest border border-emerald-100 shadow-sm">{info}</div>}
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-10">
-            <TabsList className="bg-white p-1 rounded-[16px] border border-slate-200 shadow-xl flex flex-wrap w-fit gap-1">
+            <TabsList className="bg-white p-1 rounded-[16px] border border-slate-200 shadow-xl flex flex-wrap w-fit gap-1 items-center">
               <TabsTrigger value="requests" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all">
                 Requests {pending.length > 0 && `[${pending.length}]`}
               </TabsTrigger>
@@ -556,12 +608,23 @@ export default function DoctorDashboard() {
               <TabsTrigger value="past" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all">
                 Historical Archive
               </TabsTrigger>
+              <Link to="/chat">
+                <Button variant="ghost" className="rounded-[14px] font-black uppercase text-[10px] tracking-widest px-8 py-3 text-slate-700 hover:text-[#1E3A8A] hover:bg-slate-50 transition-all relative flex items-center gap-2 h-auto">
+                  <MessageSquare className="w-4 h-4 text-[#1E3A8A]"/> Secured Chats
+                  {totalUnread > 0 && (
+                    <span className="bg-rose-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black animate-bounce">
+                      {totalUnread}
+                    </span>
+                  )}
+                </Button>
+              </Link>
             </TabsList>
             
             {selectedHistoryIds.length > 0 && (<Button variant="destructive" className="mt-4 rounded-[14px] px-6 py-6 font-bold transition-all shadow-sm shadow-rose-200" onClick={(e) => { e.stopPropagation(); deleteHistory(); }} disabled={loading}>
                 <Trash2 className="w-4 h-4 mr-2"/> Delete Selected ({selectedHistoryIds.length})
               </Button>)}
 
+            {/* REQUESTS TAB */}
             <TabsContent value="requests" className="space-y-6">
               {pending.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
                   <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -593,137 +656,139 @@ export default function DoctorDashboard() {
                                <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-100 group hover:bg-white hover:shadow-lg transition-all">
                                  <span className="text-[9px] text-slate-400 font-black uppercase block mb-2 tracking-widest">Contact</span>
                                  <span className="font-black text-[#0F172A]">{a.patientId.phone || "Offline"}</span>
-                               </div>
-                               <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-100 col-span-2 group hover:bg-white hover:shadow-lg transition-all">
-                                 <span className="text-[9px] text-slate-400 font-black uppercase block mb-2 tracking-widest">Designated Facility</span>
-                                 <div className="flex items-center justify-between gap-4">
-                                   <span className="font-black text-[#1E3A8A] uppercase tracking-tight">{a.hospitalId.name}</span>
-                                   {!a.hospitalLocked && hospitals.length > 1 && (<select className="text-[10px] bg-white border border-slate-200 rounded-xl px-4 py-2 font-black text-[#1E3A8A] uppercase outline-none shadow-sm cursor-pointer" value={a.hospitalId._id} onChange={(e) => changeHospital(a._id, e.target.value)}>
-                                       {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
-                                     </select>)}
-                                 </div>
-                               </div>
-                               {showDeclineInput === a._id && (<div className="col-span-2 space-y-3 pt-2">
-                                   <Label className="text-[10px] font-black uppercase text-rose-500 tracking-widest">Revocation Justification</Label>
-                                   <Input placeholder="Enter formal reason for protocol termination..." value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} className="rounded-[16px] h-14 bg-slate-50 border-slate-200 font-bold"/>
-                                 </div>)}
-                            </div>)}
-                        </div>
-                        
-                        <div className="bg-slate-50/50 p-8 md:w-1/3 flex flex-col justify-center gap-4 border-l border-slate-100">
-                          {expandedAppointmentId !== a._id ? (<Button className="w-full rounded-[18px] font-black uppercase text-[10px] tracking-[0.2em] bg-white text-[#1E3A8A] border border-slate-200 hover:bg-slate-50 py-8 shadow-sm transition-all" onClick={() => setExpandedAppointmentId(a._id)}>
-                              Open Dossier
-                            </Button>) : (<>
-                              {showDeclineInput === a._id ? (<>
-                                  <Button variant="ghost" className="rounded-[18px] font-black uppercase text-[10px] tracking-widest text-slate-400" onClick={() => setShowDeclineInput(null)}>Abort</Button>
-                                  <Button className="w-full rounded-[18px] bg-rose-500 hover:bg-rose-600 font-black uppercase text-[10px] tracking-widest py-8 text-white shadow-xl shadow-rose-500/20" onClick={() => declineAppointment(a._id)}>Confirm Revoke</Button>
-                                </>) : (<>
-                                  <Button variant="outline" className="w-full rounded-[18px] font-black uppercase text-[10px] tracking-widest border-slate-200 py-8 text-slate-400 hover:bg-white" onClick={() => setShowDeclineInput(a._id)}>Revoke</Button>
-                                  <Button className="w-full rounded-[18px] bg-[#1E3A8A] hover:bg-[#2563EB] font-black uppercase text-[10px] tracking-widest py-8 text-white shadow-xl gold-glow-hover" onClick={() => acceptAppointment(a._id)}>Authorize Encounter</Button>
-                                </>)}
-                            </>)}
-                        </div>
-                      </div>
-                    </Card>))}
-                </div>)}
-            </TabsContent>
+                                </div>
+                                <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-100 col-span-2 group hover:bg-white hover:shadow-lg transition-all">
+                                  <span className="text-[9px] text-slate-400 font-black uppercase block mb-2 tracking-widest">Designated Facility</span>
+                                  <div className="flex items-center justify-between gap-4">
+                                    <span className="font-black text-[#1E3A8A] uppercase tracking-tight">{a.hospitalId.name}</span>
+                                    {!a.hospitalLocked && hospitals.length > 1 && (<select className="text-[10px] bg-white border border-slate-200 rounded-xl px-4 py-2 font-black text-[#1E3A8A] uppercase outline-none shadow-sm cursor-pointer" value={a.hospitalId._id} onChange={(e) => changeHospital(a._id, e.target.value)}>
+                                        {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
+                                      </select>)}
+                                  </div>
+                                </div>
+                                {showDeclineInput === a._id && (<div className="col-span-2 space-y-3 pt-2">
+                                    <Label className="text-[10px] font-black uppercase text-rose-500 tracking-widest">Revocation Justification</Label>
+                                    <Input placeholder="Enter formal reason for protocol termination..." value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} className="rounded-[16px] h-14 bg-slate-50 border-slate-200 font-bold"/>
+                                  </div>)}
+                             </div>)}
+                         </div>
+                         
+                         <div className="bg-slate-50/50 p-8 md:w-1/3 flex flex-col justify-center gap-4 border-l border-slate-100">
+                           {expandedAppointmentId !== a._id ? (<Button className="w-full rounded-[18px] font-black uppercase text-[10px] tracking-[0.2em] bg-white text-[#1E3A8A] border border-slate-200 hover:bg-slate-50 py-8 shadow-sm transition-all" onClick={() => setExpandedAppointmentId(a._id)}>
+                               Open Dossier
+                             </Button>) : (<>
+                               {showDeclineInput === a._id ? (<>
+                                   <Button variant="ghost" className="rounded-[18px] font-black uppercase text-[10px] tracking-widest text-slate-400" onClick={() => setShowDeclineInput(null)}>Abort</Button>
+                                   <Button className="w-full rounded-[18px] bg-rose-500 hover:bg-rose-600 font-black uppercase text-[10px] tracking-widest py-8 text-white shadow-xl shadow-rose-500/20" onClick={() => declineAppointment(a._id)}>Confirm Revoke</Button>
+                                 </>) : (<>
+                                   <Button variant="outline" className="w-full rounded-[18px] font-black uppercase text-[10px] tracking-widest border-slate-200 py-8 text-slate-400 hover:bg-white" onClick={() => setShowDeclineInput(a._id)}>Revoke</Button>
+                                   <Button className="w-full rounded-[18px] bg-[#1E3A8A] hover:bg-[#2563EB] font-black uppercase text-[10px] tracking-widest py-8 text-white shadow-xl gold-glow-hover" onClick={() => acceptAppointment(a._id)}>Authorize Encounter</Button>
+                                 </>)}
+                             </>)}
+                         </div>
+                       </div>
+                     </Card>))}
+                 </div>)}
+             </TabsContent>
 
-            <TabsContent value="chat-requests" className="space-y-6">
-              {chatRequests.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <MessageSquare className="text-slate-300 w-10 h-10"/>
-                  </div>
-                  <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">No pending chat requests.</p>
-                </div>) : (<div className="grid gap-6">
-                  {chatRequests.map((req) => (<Card key={req._id} className="rounded-[24px] border-none shadow-[0_15px_40px_rgba(15,23,42,0.06)] bg-white overflow-hidden transition-all hover:scale-[1.01]">
-                      <div className="flex flex-col md:flex-row items-center justify-between p-8 gap-6">
-                        <div className="flex items-center gap-6">
-                          <div className="w-16 h-16 rounded-[20px] bg-indigo-50 flex items-center justify-center text-3xl font-black text-indigo-500 border border-indigo-100 shadow-inner">
-                            {req.patientId.name[0]}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-black text-[#0F172A] tracking-tighter uppercase">{req.patientId.name}</h3>
-                            <div className="flex flex-col mt-1 space-y-1">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{req.patientId.email} · {req.patientId.phone || "No Phone"}</p>
-                              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Wants to reconnect</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-4">
-                          <Button variant="outline" className="rounded-[14px] border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-500 font-black uppercase text-[10px] tracking-widest px-6 py-6" onClick={() => respondToChatRequest(req._id, 'decline')} disabled={loading}>
-                            Decline
-                          </Button>
-                          <Button className="rounded-[14px] bg-[#1E3A8A] hover:bg-[#2563EB] text-white font-black uppercase text-[10px] tracking-widest px-8 py-6 shadow-xl gold-glow-hover" onClick={() => respondToChatRequest(req._id, 'approve')} disabled={loading}>
-                            Accept
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>))}
-                </div>)}
-            </TabsContent>
-
-            <TabsContent value="current" className="space-y-8">
-              {confirmed.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
+             {/* CHAT REQUESTS TAB */}
+             <TabsContent value="chat-requests" className="space-y-6">
+               {chatRequests.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Activity className="text-slate-300 w-10 h-10"/>
-                  </div>
-                  <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">No active clinical encounters.</p>
-                </div>) : (<div className="grid gap-10">
-                  {confirmed.map((a) => (<Card key={a._id} className="rounded-[32px] border-none shadow-[0_20px_50px_rgba(15,23,42,0.08)] overflow-hidden bg-white">
-                      <div className="flex flex-col lg:flex-row">
-                        <div className="p-10 lg:w-1/3 bg-slate-50/50 border-r border-slate-100 flex flex-col justify-between">
-                          <div>
-                             <div className="flex items-center gap-5 mb-8">
-                                <div className="w-16 h-16 rounded-[20px] bg-emerald-500 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-emerald-500/20">
-                                  {a.patientId.name[0]}
-                                </div>
-                                <div>
-                                  <CardTitle className="text-xl font-black text-[#0F172A] uppercase tracking-tighter">{a.patientId.name}</CardTitle>
-                                  <StatusBadge status={a.status}/>
-                                </div>
+                     <MessageSquare className="text-slate-300 w-10 h-10"/>
+                   </div>
+                   <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">No pending chat requests.</p>
+                 </div>) : (<div className="grid gap-6">
+                   {chatRequests.map((req) => (<Card key={req._id} className="rounded-[24px] border-none shadow-[0_15px_40px_rgba(15,23,42,0.06)] bg-white overflow-hidden transition-all hover:scale-[1.01]">
+                       <div className="flex flex-col md:flex-row items-center justify-between p-8 gap-6">
+                         <div className="flex items-center gap-6">
+                           <div className="w-16 h-16 rounded-[20px] bg-indigo-50 flex items-center justify-center text-3xl font-black text-indigo-500 border border-indigo-100 shadow-inner">
+                             {req.patientId.name[0]}
+                           </div>
+                           <div>
+                             <h3 className="text-xl font-black text-[#0F172A] tracking-tighter uppercase">{req.patientId.name}</h3>
+                             <div className="flex flex-col mt-1 space-y-1">
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{req.patientId.email} · {req.patientId.phone || "No Phone"}</p>
+                               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Wants to reconnect</span>
                              </div>
-                             <div className="space-y-5">
-                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sequence ID</span>
-                                   <span className="text-[11px] font-black text-[#0F172A] uppercase">#{a.tokenNumber || "AUTH-N/A"}</span>
-                                </div>
-                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Medical Hub</span>
-                                   <Link to={`/hospitals/detail?id=${a.hospitalId._id}`} className="text-[11px] font-black text-[#1E3A8A] uppercase text-right hover:underline">
-                                     {a.hospitalId.name}
-                                   </Link>
-                                </div>
-                                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Window</span>
-                                   <span className="text-[11px] font-black text-[#0F172A] uppercase">{new Date(a.date).toLocaleDateString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Settlement</span>
-                                   <div className="flex items-center gap-2">
-                                     <Badge variant="outline" className={`font-black text-[9px] uppercase tracking-widest ${a.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                                       {a.paymentStatus}
-                                     </Badge>
-                                     {a.paymentMethod === 'pay_later' && (<button onClick={() => togglePaymentStatus(a._id)} disabled={loading} className="p-1 rounded-full hover:bg-slate-100 transition-colors" title="Toggle Payment Status">
-                                         <Activity className="w-3 h-3 text-slate-400"/>
-                                       </button>)}
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                          
-                          <div className="mt-8 flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-100">
-                             <Button className="flex-1 w-full rounded-[14px] bg-[#1E3A8A] hover:bg-[#2563EB] text-white font-black uppercase text-[10px] tracking-widest h-12 shadow-md relative px-2" onClick={() => openChat(a._id)}>
-                               {openChatIds.includes(a._id) ? "Close Secure Chat" : "Chat to Patient"}
-                               {!openChatIds.includes(a._id) && unreadCounts[a._id] > 0 && (<div className="absolute -top-2 -right-2 flex items-center justify-center bg-rose-500 text-white text-[10px] font-black w-6 h-6 rounded-full shadow-lg animate-bounce z-10 border-2 border-white">
-                                   <Bell className="w-3 h-3 mr-0.5"/>
-                                   {unreadCounts[a._id]}
-                                 </div>)}
-                             </Button>
-                             <Button className="flex-1 w-full rounded-[14px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-black uppercase text-[10px] tracking-widest h-12 px-2" onClick={() => setExpandedAppointmentId(expandedAppointmentId === a._id ? null : a._id)}>
-                               {expandedAppointmentId === a._id ? "Close Panel" : "Conclude Encounter"}
-                             </Button>
-                          </div>
-                        </div>
+                           </div>
+                         </div>
+                         <div className="flex gap-4">
+                           <Button variant="outline" className="rounded-[14px] border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-500 font-black uppercase text-[10px] tracking-widest px-6 py-6" onClick={() => respondToChatRequest(req._id, 'decline')} disabled={loading}>
+                             Decline
+                           </Button>
+                           <Button className="rounded-[14px] bg-[#1E3A8A] hover:bg-[#2563EB] text-white font-black uppercase text-[10px] tracking-widest px-8 py-6 shadow-xl gold-glow-hover" onClick={() => respondToChatRequest(req._id, 'approve')} disabled={loading}>
+                             Accept
+                           </Button>
+                         </div>
+                       </div>
+                     </Card>))}
+                 </div>)}
+             </TabsContent>
+
+             {/* ACTIVE ENCOUNTERS TAB */}
+             <TabsContent value="current" className="space-y-8">
+               {confirmed.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                     <Activity className="text-slate-300 w-10 h-10"/>
+                   </div>
+                   <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">No active clinical encounters.</p>
+                 </div>) : (<div className="grid gap-10">
+                   {confirmed.map((a) => (<Card key={a._id} className="rounded-[32px] border-none shadow-[0_20px_50px_rgba(15,23,42,0.08)] overflow-hidden bg-white">
+                       <div className="flex flex-col lg:flex-row">
+                         <div className="p-10 lg:w-1/3 bg-slate-50/50 border-r border-slate-100 flex flex-col justify-between">
+                           <div>
+                              <div className="flex items-center gap-5 mb-8">
+                                 <div className="w-16 h-16 rounded-[20px] bg-emerald-500 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-emerald-500/20">
+                                   {a.patientId.name[0]}
+                                 </div>
+                                 <div>
+                                   <CardTitle className="text-xl font-black text-[#0F172A] uppercase tracking-tighter">{a.patientId.name}</CardTitle>
+                                   <StatusBadge status={a.status}/>
+                                 </div>
+                              </div>
+                              <div className="space-y-5">
+                                 <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sequence ID</span>
+                                    <span className="text-[11px] font-black text-[#0F172A] uppercase">#{a.tokenNumber || "AUTH-N/A"}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Medical Hub</span>
+                                    <Link to={`/hospitals/detail?id=${a.hospitalId._id}`} className="text-[11px] font-black text-[#1E3A8A] uppercase text-right hover:underline">
+                                      {a.hospitalId.name}
+                                    </Link>
+                                 </div>
+                                 <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Window</span>
+                                    <span className="text-[11px] font-black text-[#0F172A] uppercase">{new Date(a.date).toLocaleDateString()}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Settlement</span>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className={`font-black text-[9px] uppercase tracking-widest ${a.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                        {a.paymentStatus}
+                                      </Badge>
+                                      {a.paymentMethod === 'pay_later' && (<button onClick={() => togglePaymentStatus(a._id)} disabled={loading} className="p-1 rounded-full hover:bg-slate-100 transition-colors" title="Toggle Payment Status">
+                                          <Activity className="w-3 h-3 text-slate-400"/>
+                                        </button>)}
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                           
+                           <div className="mt-8 flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-100">
+                              <Button className="flex-1 w-full rounded-[14px] bg-[#1E3A8A] hover:bg-[#2563EB] text-white font-black uppercase text-[10px] tracking-widest h-12 shadow-md relative px-2" onClick={() => toggleChat(a._id)}>
+                                {openChatIds.includes(a._id) ? "Close Secure Chat" : "Chat to Patient"}
+                                {!openChatIds.includes(a._id) && unreadCounts[a._id] > 0 && (<div className="absolute -top-2 -right-2 flex items-center justify-center bg-rose-500 text-white text-[10px] font-black w-6 h-6 rounded-full shadow-lg animate-bounce z-10 border-2 border-white">
+                                    <Bell className="w-3 h-3 mr-0.5"/>
+                                    {unreadCounts[a._id]}
+                                  </div>)}
+                              </Button>
+                              <Button className="flex-1 w-full rounded-[14px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-black uppercase text-[10px] tracking-widest h-12 px-2" onClick={() => setExpandedAppointmentId(expandedAppointmentId === a._id ? null : a._id)}>
+                                {expandedAppointmentId === a._id ? "Close Panel" : "Conclude Encounter"}
+                              </Button>
+                           </div>
+                         </div>
 
                          <div className="flex-1 flex flex-col bg-white">
                           {openChatIds.includes(a._id) ? (<div className="flex flex-col h-[600px]">
@@ -786,23 +851,23 @@ export default function DoctorDashboard() {
                       </div>
                     </Card>))}
                 </div>)}
-            </TabsContent>
+             </TabsContent>
 
-            {/* PAST TAB */}
-            <TabsContent value="past" className="space-y-6">
+             {/* PAST TAB */}
+             <TabsContent value="past" className="space-y-6">
                {past.length === 0 ? (<div className="text-center py-32 bg-white rounded-[32px] border border-dashed border-slate-200 shadow-sm">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <History className="text-slate-300 w-10 h-10"/>
-                  </div>
-                  <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">Archive empty. No historical encounters.</p>
-                </div>) : (<div className="grid gap-4">
-                  {past.map((a) => (<Card key={a._id} className={`rounded-[24px] border ${selectedHistoryIds.includes(a._id) ? 'border-rose-400 bg-rose-50/20' : 'border-slate-100 bg-white'} shadow-sm hover:shadow-xl transition-all cursor-pointer group`} onClick={() => setExpandedAppointmentId(expandedAppointmentId === a._id ? null : a._id)}>
-                      <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-                         <div className="flex items-center gap-5">
-                            <div className={`w-6 h-6 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryIds.includes(a._id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-slate-300'}`} onClick={(e) => toggleHistorySelection(a._id, e)}>
-                              {selectedHistoryIds.includes(a._id) && <div className="w-3 h-3 bg-white rounded-sm"/>}
-                            </div>
-                            <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center font-black text-xl shadow-inner border ${a.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
+                   <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                     <History className="text-slate-300 w-10 h-10"/>
+                   </div>
+                   <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">Archive empty. No historical encounters.</p>
+                 </div>) : (<div className="grid gap-4">
+                   {past.map((a) => (<Card key={a._id} className={`rounded-[24px] border ${selectedHistoryIds.includes(a._id) ? 'border-rose-400 bg-rose-50/20' : 'border-slate-100 bg-white'} shadow-sm hover:shadow-xl transition-all cursor-pointer group`} onClick={() => setExpandedAppointmentId(expandedAppointmentId === a._id ? null : a._id)}>
+                       <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                          <div className="flex items-center gap-5">
+                             <div className={`w-6 h-6 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryIds.includes(a._id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-slate-300'}`} onClick={(e) => toggleHistorySelection(a._id, e)}>
+                               {selectedHistoryIds.includes(a._id) && <div className="w-3 h-3 bg-white rounded-sm"/>}
+                             </div>
+                             <div className={`w-14 h-14 rounded-[18px] flex items-center justify-center font-black text-xl shadow-inner border ${a.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
                                {a.patientId.name[0]}
                             </div>
                             <div>

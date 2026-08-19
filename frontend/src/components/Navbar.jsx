@@ -46,37 +46,18 @@ export function Navbar({ session }) {
             </Button>
           </Link>
 
-          {session?.role === "doctor" && (<>
-              <Link to="/doctor?tab=requests">
-                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
-                  <Clock className="w-4 h-4 mr-2"/> Requests
-                </Button>
-              </Link>
-              <Link to="/doctor?tab=chat-requests">
-                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
-                  <MessageSquare className="w-4 h-4 mr-2"/> Chat Req
-                </Button>
-              </Link>
-              <Link to="/doctor?tab=current">
-                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
-                  <Activity className="w-4 h-4 mr-2"/> Active Encounters
-                </Button>
-              </Link>
-              <Link to="/doctor?tab=past">
-                <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
-                  <History className="w-4 h-4 mr-2"/> Historical Archive
-                </Button>
-              </Link>
-            </>)}
-
-          <Link to="/chat">
-            <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
-              <MessageSquare className="w-4 h-4 mr-2"/> Secure Chat
-              {totalUnread > 0 && !isChatPage && (<span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
-                  {totalUnread}
-                </span>)}
-            </Button>
-          </Link>
+          {session?.role !== "doctor" && (
+            <Link to="/chat">
+              <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
+                <MessageSquare className="w-4 h-4 mr-2"/> Secure Chat
+                {totalUnread > 0 && !isChatPage && (
+                  <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
+                    {totalUnread}
+                  </span>
+                )}
+              </Button>
+            </Link>
+          )}
 
           <Link to="/profile">
             <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">
