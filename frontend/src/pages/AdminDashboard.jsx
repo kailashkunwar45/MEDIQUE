@@ -210,7 +210,7 @@ export default function HospitalAdminDashboard() {
                                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{new Date(p.lastVisit).toLocaleDateString()}</span>
                                    </td>
                                    <td className="p-8 text-right">
-                                      <Link href={`/admin/case/detail?id=${p.appointmentId}`}>
+                                      <Link to={`/admin/case/detail?id=${p.appointmentId}`}>
                                          <Button variant="outline" className="text-[#1E3A8A] font-black text-[10px] hover:bg-[#1E3A8A] hover:text-white rounded-[14px] px-8 h-12 border-slate-200 uppercase tracking-widest shadow-sm transition-all">Open File →</Button>
                                       </Link>
                                    </td>

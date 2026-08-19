@@ -118,7 +118,7 @@ function HospitalDetailContent() {
       {/* Hero */}
       <div className="w-full bg-gradient-to-br from-emerald-500/15 via-primary/5 to-background border-b border-muted px-8 pt-10 pb-8">
         <div className="max-w-5xl mx-auto">
-          <Link href="/hospitals" className="text-sm text-primary hover:underline mb-4 inline-block">← All Hospitals</Link>
+          <Link to="/hospitals" className="text-sm text-primary hover:underline mb-4 inline-block">← All Hospitals</Link>
           <div className="flex flex-col sm:flex-row items-start gap-6">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-primary/20 flex items-center justify-center text-3xl shrink-0 shadow-lg">
               🏥
@@ -168,12 +168,12 @@ function HospitalDetailContent() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm group-hover:text-primary transition-colors">
-                            <Link href={`/doctors?id=${d._id}`}>{d.name}</Link>
+                            <Link to={`/doctors?id=${d._id}`}>{d.name}</Link>
                           </div>
                           {d.specialization && (<div className="text-xs text-muted-foreground">{d.specialization} {d.appointmentFee ? `· Fee: $${d.appointmentFee}` : ""}</div>)}
                           <div className="text-xs text-muted-foreground">{d.email}</div>
                         </div>
-                        <Link href={`/doctors?id=${d._id}`}>
+                        <Link to={`/doctors?id=${d._id}`}>
                           <Button size="sm" variant="outline" className="rounded-xl text-xs">Profile</Button>
                         </Link>
                       </div>);

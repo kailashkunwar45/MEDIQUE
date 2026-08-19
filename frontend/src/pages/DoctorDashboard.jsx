@@ -689,7 +689,7 @@ export default function DoctorDashboard() {
                                 </div>
                                 <div className="flex justify-between items-center pb-3 border-b border-slate-100">
                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Medical Hub</span>
-                                   <Link href={`/hospitals/detail?id=${a.hospitalId._id}`} className="text-[11px] font-black text-[#1E3A8A] uppercase text-right hover:underline">
+                                   <Link to={`/hospitals/detail?id=${a.hospitalId._id}`} className="text-[11px] font-black text-[#1E3A8A] uppercase text-right hover:underline">
                                      {a.hospitalId.name}
                                    </Link>
                                 </div>

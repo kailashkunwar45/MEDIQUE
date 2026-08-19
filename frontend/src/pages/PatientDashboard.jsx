@@ -336,7 +336,7 @@ export default function PatientDashboard() {
 
       <div className="max-w-7xl mx-auto p-8 space-y-8">
         {!session?.accessToken && (<div className="text-xs font-black uppercase tracking-widest text-rose-600 bg-rose-50 border border-rose-100 rounded-[20px] p-6 text-center">
-            Authorization required. Redirecting to <Link className="underline text-primary" href="/login">Secure Portal</Link>...
+            Authorization required. Redirecting to <Link className="underline text-primary" to="/login">Secure Portal</Link>...
           </div>)}
         {error && <div className="text-xs font-black uppercase tracking-widest text-rose-600 bg-rose-50 border border-rose-100 rounded-[20px] p-6">{error}</div>}
         {info && <div className="text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-[20px] p-6">{info}</div>}
@@ -354,7 +354,7 @@ export default function PatientDashboard() {
                 <select className="w-full rounded-[16px] bg-slate-50 border border-slate-200 px-4 py-4 text-sm font-bold text-[#0F172A] outline-none focus:border-accent" value={selectedHospitalId} onChange={(e) => setSelectedHospitalId(e.target.value)} disabled={!session?.accessToken || doctorHospitals.length === 0}>
                   {doctorHospitals.length === 0 ? (<option>Awaiting Specialist Selection...</option>) : (doctorHospitals.map((h) => <option key={h._id} value={h._id}>{h.name}</option>))}
                 </select>
-                {selectedHospitalId && (<Link href={`/hospitals/detail?id=${selectedHospitalId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Facility Dossier →</Link>)}
+                {selectedHospitalId && (<Link to={`/hospitals/detail?id=${selectedHospitalId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Facility Dossier →</Link>)}
               </div>
 
               <div className="space-y-2">
@@ -372,7 +372,7 @@ export default function PatientDashboard() {
                          {d.name}{d.specialization ? ` | ${d.specialization}` : ""} {d.appointmentFee ? ` ($${d.appointmentFee})` : ""}
                        </option>)))}
                 </select>
-                {selectedDoctorId && (<Link href={`/doctors?id=${selectedDoctorId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Doctor Dossier →</Link>)}
+                {selectedDoctorId && (<Link to={`/doctors?id=${selectedDoctorId}`} className="text-[10px] font-black text-[#1E3A8A] hover:underline uppercase tracking-tighter block mt-2 opacity-60">Doctor Dossier →</Link>)}
               </div>
 
               <div className="space-y-2">
@@ -429,13 +429,13 @@ export default function PatientDashboard() {
                            </div>
                            <div className="space-y-1">
                               <div className="flex items-center gap-3">
-                                <Link href={`/doctors?id=${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
+                                <Link to={`/doctors?id=${a.doctorId?._id}`} className="font-black text-[#0F172A] text-lg tracking-tight uppercase hover:underline">
                                   Dr. {a.doctorId?.name || "Specialist"}
                                 </Link>
                                  {a.doctorId?.specialization && (<span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.doctorId.specialization} {a.doctorId.appointmentFee ? `· $${a.doctorId.appointmentFee}` : ""}</span>)}
                               </div>
                               <div className="text-xs font-bold text-slate-500">
-                                <Link href={`/hospitals/detail?id=${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
+                                <Link to={`/hospitals/detail?id=${a.hospitalId?._id}`} className="hover:text-[#1E3A8A] transition-colors uppercase tracking-widest">
                                   🏥 {a.hospitalId?.name}
                                 </Link>
                               </div>

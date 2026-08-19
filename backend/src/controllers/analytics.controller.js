@@ -15,11 +15,11 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-const appointment = require("../models/appointment.model");
-const payment = require("../models/payment.model");
-const user = require("../models/user.model");
-const hospital = require("../models/hospital.model");
-const subscription = require("../models/subscription.model");
+const { Appointment, AppointmentStatus } = require("../models/appointment.model");
+const { Payment, PaymentStatus, PaymentProvider } = require("../models/payment.model");
+const { User, UserRole } = require("../models/user.model");
+const { Hospital } = require("../models/hospital.model");
+const { Subscription, SubscriptionTier, SubscriptionStatus, BillingCycle } = require("../models/subscription.model");
 const getHospitalStats = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
@@ -33,18 +33,18 @@ const getHospitalStats = async (req, res) => {
       recentPayments,
       last7DaysAppointments
     ] = await Promise.all([
-      appointment.Appointment.countDocuments({ hospitalId }),
-      appointment.Appointment.countDocuments({ hospitalId, status: appointment.AppointmentStatus.COMPLETED }),
-      appointment.Appointment.countDocuments({ hospitalId, status: appointment.AppointmentStatus.PENDING }),
-      payment.Payment.aggregate([
-        { $match: { hospitalId, status: payment.PaymentStatus.SUCCESS } },
+      Appointment.countDocuments({ hospitalId }),
+      Appointment.countDocuments({ hospitalId, status: AppointmentStatus.COMPLETED }),
+      Appointment.countDocuments({ hospitalId, status: AppointmentStatus.PENDING }),
+      Payment.aggregate([
+        { $match: { hospitalId, status: PaymentStatus.SUCCESS } },
         { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
-      user.User.countDocuments({ hospitalId, role: user.UserRole.DOCTOR }),
-      user.User.countDocuments({ hospitalId, role: user.UserRole.PATIENT }),
-      payment.Payment.find({ hospitalId, status: payment.PaymentStatus.SUCCESS }).sort({ createdAt: -1 }).limit(10).populate("patientId", "name").lean(),
+      User.countDocuments({ hospitalId, role: UserRole.DOCTOR }),
+      User.countDocuments({ hospitalId, role: UserRole.PATIENT }),
+      Payment.find({ hospitalId, status: PaymentStatus.SUCCESS }).sort({ createdAt: -1 }).limit(10).populate("patientId", "name").lean(),
       // Last 7 days appointment trend
-      appointment.Appointment.aggregate([
+      Appointment.aggregate([
         {
           $match: {
             hospitalId,
@@ -90,21 +90,21 @@ const getPlatformStats = async (req, res) => {
       revenueByMonth,
       topHospitals
     ] = await Promise.all([
-      hospital.Hospital.countDocuments(),
-      hospital.Hospital.countDocuments({ isActive: true }),
-      user.User.countDocuments(),
-      user.User.countDocuments({ role: user.UserRole.PATIENT }),
-      user.User.countDocuments({ role: user.UserRole.DOCTOR }),
-      payment.Payment.aggregate([
-        { $match: { status: payment.PaymentStatus.SUCCESS } },
+      Hospital.countDocuments(),
+      Hospital.countDocuments({ isActive: true }),
+      User.countDocuments(),
+      User.countDocuments({ role: UserRole.PATIENT }),
+      User.countDocuments({ role: UserRole.DOCTOR }),
+      Payment.aggregate([
+        { $match: { status: PaymentStatus.SUCCESS } },
         { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
-      subscription.Subscription.aggregate([
+      Subscription.aggregate([
         { $group: { _id: "$tier", count: { $sum: 1 } } }
       ]),
       // Revenue last 6 months
-      payment.Payment.aggregate([
-        { $match: { status: payment.PaymentStatus.SUCCESS } },
+      Payment.aggregate([
+        { $match: { status: PaymentStatus.SUCCESS } },
         {
           $group: {
             _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
@@ -116,7 +116,7 @@ const getPlatformStats = async (req, res) => {
         { $limit: 6 }
       ]),
       // Top hospitals by appointment count
-      appointment.Appointment.aggregate([
+      Appointment.aggregate([
         { $group: { _id: "$hospitalId", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 5 },

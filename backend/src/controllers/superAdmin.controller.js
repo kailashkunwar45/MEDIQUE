@@ -15,13 +15,13 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-const user = require("../models/user.model");
-const hospital = require("../models/hospital.model");
-const appointment = require("../models/appointment.model");
+const { User, UserRole } = require("../models/user.model");
+const { Hospital } = require("../models/hospital.model");
+const { Appointment, AppointmentStatus } = require("../models/appointment.model");
 const socket = require("../socket");
 const getPendingHospitals = async (req, res) => {
   try {
-    const hospitals = await hospital.Hospital.find({ isApprovedBySuperAdmin: false }).lean();
+    const hospitals = await Hospital.find({ isApprovedBySuperAdmin: false }).lean();
     res.json(hospitals);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -29,7 +29,7 @@ const getPendingHospitals = async (req, res) => {
 };
 const getApprovedHospitals = async (req, res) => {
   try {
-    const hospitals = await hospital.Hospital.find({ isApprovedBySuperAdmin: true }).lean();
+    const hospitals = await Hospital.find({ isApprovedBySuperAdmin: true }).lean();
     res.json(hospitals);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -38,13 +38,13 @@ const getApprovedHospitals = async (req, res) => {
 const approveHospital = async (req, res) => {
   try {
     const { hospitalId, status } = req.body;
-    const hospital = await hospital.Hospital.findById(hospitalId);
+    const hospital = await Hospital.findById(hospitalId);
     if (!hospital) return res.status(404).json({ message: "Hospital not found" });
     if (status === "approved") {
       hospital.isApprovedBySuperAdmin = true;
       hospital.isActive = true;
-      await user.User.updateMany(
-        { hospitalId: hospital._id, role: user.UserRole.HOSPITAL_ADMIN },
+      await User.updateMany(
+        { hospitalId: hospital._id, role: UserRole.HOSPITAL_ADMIN },
         { isApprovedBySuperAdmin: true }
       );
     } else {
@@ -58,8 +58,8 @@ const approveHospital = async (req, res) => {
 };
 const getPendingDoctorsGlobal = async (req, res) => {
   try {
-    const doctors = await user.User.find({
-      role: user.UserRole.DOCTOR,
+    const doctors = await User.find({
+      role: UserRole.DOCTOR,
       isApprovedBySuperAdmin: false,
       isOnboarded: true
     }).populate("hospitalIds", "name").lean();
@@ -70,8 +70,8 @@ const getPendingDoctorsGlobal = async (req, res) => {
 };
 const getApprovedDoctorsGlobal = async (req, res) => {
   try {
-    const doctors = await user.User.find({
-      role: user.UserRole.DOCTOR,
+    const doctors = await User.find({
+      role: UserRole.DOCTOR,
       isApprovedBySuperAdmin: true
     }).populate("hospitalIds", "name").lean();
     res.json(doctors);
@@ -82,8 +82,8 @@ const getApprovedDoctorsGlobal = async (req, res) => {
 const approveDoctorGlobal = async (req, res) => {
   try {
     const { doctorId, status } = req.body;
-    const doctor = await user.User.findById(doctorId);
-    if (!doctor || doctor.role !== user.UserRole.DOCTOR) {
+    const doctor = await User.findById(doctorId);
+    if (!doctor || doctor.role !== UserRole.DOCTOR) {
       return res.status(404).json({ message: "Doctor not found" });
     }
     if (status === "approved") {
@@ -99,7 +99,7 @@ const approveDoctorGlobal = async (req, res) => {
 const removeDoctor = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    await user.User.findOneAndDelete({ _id: doctorId, role: user.UserRole.DOCTOR });
+    await User.findOneAndDelete({ _id: doctorId, role: UserRole.DOCTOR });
     res.json({ message: "Doctor removed successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -108,8 +108,8 @@ const removeDoctor = async (req, res) => {
 const removeHospital = async (req, res) => {
   try {
     const { hospitalId } = req.params;
-    await hospital.Hospital.findByIdAndDelete(hospitalId);
-    await user.User.updateMany({ hospitalId }, { isActive: false });
+    await Hospital.findByIdAndDelete(hospitalId);
+    await User.updateMany({ hospitalId }, { isActive: false });
     res.json({ message: "Hospital removed successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -118,7 +118,7 @@ const removeHospital = async (req, res) => {
 const banUser = async (req, res) => {
   try {
     const { userId, isBanned, reason } = req.body;
-    await user.User.findByIdAndUpdate(userId, { isBanned, banReason: reason });
+    await User.findByIdAndUpdate(userId, { isBanned, banReason: reason });
     res.json({ message: `User ${isBanned ? "banned" : "unbanned"} successfully` });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -127,7 +127,7 @@ const banUser = async (req, res) => {
 const banHospital = async (req, res) => {
   try {
     const { hospitalId, isBanned, reason } = req.body;
-    await hospital.Hospital.findByIdAndUpdate(hospitalId, { isBanned, banReason: reason });
+    await Hospital.findByIdAndUpdate(hospitalId, { isBanned, banReason: reason });
     res.json({ message: `Hospital ${isBanned ? "banned" : "unbanned"} successfully` });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -136,9 +136,9 @@ const banHospital = async (req, res) => {
 const cancelAppointmentGlobal = async (req, res) => {
   try {
     const { appointmentId, reason } = req.body;
-    const appointment = await appointment.Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId);
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });
-    appointment.status = appointment.AppointmentStatus.CANCELLED;
+    appointment.status = AppointmentStatus.CANCELLED;
     appointment.cancelReason = reason || "Cancelled by System Administrator";
     await appointment.save();
     res.json({ message: "Appointment cancelled globally" });
@@ -148,11 +148,11 @@ const cancelAppointmentGlobal = async (req, res) => {
 };
 const getGlobalStats = async (req, res) => {
   try {
-    const hospitalCount = await hospital.Hospital.countDocuments();
-    const doctorCount = await user.User.countDocuments({ role: user.UserRole.DOCTOR });
-    const patientCount = await user.User.countDocuments({ role: user.UserRole.PATIENT });
-    const totalAppointments = await appointment.Appointment.countDocuments();
-    const appointmentMix = await appointment.Appointment.aggregate([
+    const hospitalCount = await Hospital.countDocuments();
+    const doctorCount = await User.countDocuments({ role: UserRole.DOCTOR });
+    const patientCount = await User.countDocuments({ role: UserRole.PATIENT });
+    const totalAppointments = await Appointment.countDocuments();
+    const appointmentMix = await Appointment.aggregate([
       { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
     res.json({
@@ -173,8 +173,8 @@ const getGlobalStats = async (req, res) => {
 };
 const getPendingFeeUpdates = async (req, res) => {
   try {
-    const doctors = await user.User.find({
-      role: user.UserRole.DOCTOR,
+    const doctors = await User.find({
+      role: UserRole.DOCTOR,
       pendingFeeUpdate: { $exists: true }
     }).select("name email specialization appointmentFee pendingFeeUpdate").lean();
     res.json(doctors);
@@ -185,8 +185,8 @@ const getPendingFeeUpdates = async (req, res) => {
 const approveFeeUpdate = async (req, res) => {
   try {
     const { doctorId, status, reason } = req.body;
-    const doctor = await user.User.findById(doctorId);
-    if (!doctor || doctor.role !== user.UserRole.DOCTOR) {
+    const doctor = await User.findById(doctorId);
+    if (!doctor || doctor.role !== UserRole.DOCTOR) {
       return res.status(404).json({ message: "Doctor not found" });
     }
     if (!doctor.pendingFeeUpdate || doctor.pendingFeeUpdate.status !== "pending") {
@@ -221,8 +221,8 @@ const bulkUpdateFees = async (req, res) => {
     if (!newFee || isNaN(Number(newFee))) {
       return res.status(400).json({ message: "Valid newFee is required" });
     }
-    const result = await user.User.updateMany(
-      { role: user.UserRole.DOCTOR },
+    const result = await User.updateMany(
+      { role: UserRole.DOCTOR },
       {
         pendingFeeUpdate: {
           newFee: Number(newFee),

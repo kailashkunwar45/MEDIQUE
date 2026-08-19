@@ -37,12 +37,12 @@ export default function Home() {
 
         {/* Action Center */}
         <div className="flex flex-col gap-4 pt-6">
-          <Link href="/login" className="w-full">
+          <Link to="/login" className="w-full">
             <Button size="lg" className="w-full h-20 rounded-[20px] text-xs font-black tracking-[0.2em] bg-white text-black hover:bg-slate-100 shadow-2xl transition-all scale-95 hover:scale-100 gold-glow uppercase">
               Enter Operational Dashboard
             </Button>
           </Link>
-          <Link href="/register" className="w-full">
+          <Link to="/register" className="w-full">
             <Button size="lg" variant="outline" className="w-full h-20 rounded-[20px] text-xs font-black tracking-[0.2em] border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all uppercase">
               Establish Facility Link
             </Button>

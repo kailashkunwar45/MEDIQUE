@@ -118,7 +118,7 @@ export default function RegisterPage() {
               {loading ? "Creating Account..." : "Create Account"}
             </Button>
             <div className="text-sm text-muted-foreground text-center">
-              Already have an account? <Link href="/login" className="text-primary font-bold hover:underline">Login</Link>
+              Already have an account? <Link to="/login" className="text-primary font-bold hover:underline">Login</Link>
             </div>
           </CardFooter>
         </form>

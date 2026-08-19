@@ -15,16 +15,16 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-const queue = require("../models/queue.model");
-const appointment = require("../models/appointment.model");
+const { Queue } = require("../models/queue.model");
+const { Appointment, AppointmentStatus } = require("../models/appointment.model");
 const socket = require("../socket");
 const notification = require("../services/notification.service");
-const user = require("../models/user.model");
+const { User, UserRole } = require("../models/user.model");
 const getQueueStatus = async (req, res) => {
   try {
     const { hospitalId, doctorId, date } = req.query;
     const queryDate = date ? new Date(date).setHours(0, 0, 0, 0) : (/* @__PURE__ */ new Date()).setHours(0, 0, 0, 0);
-    const queue = await queue.Queue.findOne({
+    const queue = await Queue.findOne({
       hospitalId,
       doctorId,
       date: queryDate
@@ -41,7 +41,7 @@ const callNextPatient = async (req, res) => {
   try {
     const doctorId = req.user?._id;
     const { queueId } = req.body;
-    const queue = await queue.Queue.findOne({ _id: queueId, doctorId });
+    const queue = await Queue.findOne({ _id: queueId, doctorId });
     if (!queue) {
       return res.status(404).json({ message: "Queue not found or unauthorized" });
     }
@@ -49,19 +49,19 @@ const callNextPatient = async (req, res) => {
       queue.currentToken += 1;
       await queue.save();
       if (queue.currentToken > 1) {
-        await appointment.Appointment.findOneAndUpdate(
+        await Appointment.findOneAndUpdate(
           { doctorId, date: queue.date, tokenNumber: queue.currentToken - 1 },
-          { status: appointment.AppointmentStatus.COMPLETED }
+          { status: AppointmentStatus.COMPLETED }
         );
       }
-      const nextAppointment = await appointment.Appointment.findOne({
+      const nextAppointment = await Appointment.findOne({
         doctorId,
         date: queue.date,
         tokenNumber: queue.currentToken
       }).populate("patientId", "email name phone");
       if (nextAppointment) {
         const patient = nextAppointment.patientId;
-        const doctor = await user.User.findById(doctorId);
+        const doctor = await User.findById(doctorId);
         await notification.NotificationService.notifyNextInQueue(patient.email, patient.phone || "", doctor?.name || "Doctor");
       }
       const io = (socket.getIo)();

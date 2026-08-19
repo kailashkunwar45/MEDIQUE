@@ -1,14 +1,14 @@
 const mongoose = require("mongoose");
-const user = require("../models/user.model");
-const hospital = require("../models/hospital.model");
-const appointment = require("../models/appointment.model");
-const review = require("../models/review.model");
+const { User, UserRole } = require("../models/user.model");
+const { Hospital } = require("../models/hospital.model");
+const { Appointment, AppointmentStatus } = require("../models/appointment.model");
+const { Review } = require("../models/review.model");
 const onboardHospital = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
     const { certification, services, name, address } = req.body;
     if (!hospitalId) return res.status(400).json({ message: "Hospital ID not found in session" });
-    const hospital = await hospital.Hospital.findById(hospitalId);
+    const hospital = await Hospital.findById(hospitalId);
     if (!hospital) return res.status(404).json({ message: "Hospital not found" });
     if (name) hospital.name = name;
     if (address) hospital.address = address;
@@ -25,8 +25,8 @@ const getHospitalDoctors = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
     if (!hospitalId) return res.status(400).json({ message: "Hospital ID not found" });
-    const doctors = await user.User.find({
-      role: user.UserRole.DOCTOR,
+    const doctors = await User.find({
+      role: UserRole.DOCTOR,
       $or: [
         { hospitalId },
         { hospitalIds: { $in: [hospitalId] } }
@@ -41,9 +41,9 @@ const getHospitalPatients = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
     if (!hospitalId) return res.status(400).json({ message: "Hospital ID not found" });
-    const appointments = await appointment.Appointment.find({
+    const appointments = await Appointment.find({
       hospitalId,
-      status: { $in: [appointment.AppointmentStatus.CONFIRMED, appointment.AppointmentStatus.COMPLETED] }
+      status: { $in: [AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED] }
     }).populate("patientId", "name email phone").populate("doctorId", "name specialization").sort({ date: -1 });
     const patients = Array.from(new Set(appointments.map((a) => String(a.patientId?._id)))).map((pId) => {
       const patientAppointments = appointments.filter((a) => String(a.patientId?._id) === pId);
@@ -69,9 +69,9 @@ const getHospitalUpcomingBookings = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
     if (!hospitalId) return res.status(400).json({ message: "Hospital ID not found" });
-    const appointments = await appointment.Appointment.find({
+    const appointments = await Appointment.find({
       hospitalId,
-      status: appointment.AppointmentStatus.CONFIRMED,
+      status: AppointmentStatus.CONFIRMED,
       date: { $gte: /* @__PURE__ */ new Date() }
     }).populate("patientId", "name email").populate("doctorId", "name").sort({ date: 1 });
     res.json(appointments);
@@ -83,15 +83,15 @@ const getHospitalStats = async (req, res) => {
   try {
     const hospitalId = req.user?.hospitalId;
     if (!hospitalId) return res.status(400).json({ message: "Hospital ID not found" });
-    const doctorCount = await user.User.countDocuments({
-      role: user.UserRole.DOCTOR,
+    const doctorCount = await User.countDocuments({
+      role: UserRole.DOCTOR,
       $or: [{ hospitalId }, { hospitalIds: { $in: [hospitalId] } }]
     });
-    const appointmentStats = await appointment.Appointment.aggregate([
+    const appointmentStats = await Appointment.aggregate([
       { $match: { hospitalId: new mongoose.Types.ObjectId(String(hospitalId)) } },
       { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
-    const totalPatients = await appointment.Appointment.distinct("patientId", { hospitalId });
+    const totalPatients = await Appointment.distinct("patientId", { hospitalId });
     res.json({
       doctors: doctorCount,
       patients: totalPatients.length,
@@ -107,11 +107,11 @@ const getHospitalStats = async (req, res) => {
 const getDoctorStats = async (req, res) => {
   try {
     const doctorId = req.user?._id;
-    const appointmentStats = await appointment.Appointment.aggregate([
+    const appointmentStats = await Appointment.aggregate([
       { $match: { doctorId: new mongoose.Types.ObjectId(String(doctorId)) } },
       { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
-    const ratingStats = await review.Review.aggregate([
+    const ratingStats = await Review.aggregate([
       { $match: { targetId: new mongoose.Types.ObjectId(String(doctorId)), targetType: "doctor" } },
       { $group: { _id: "$rating", count: { $sum: 1 } } }
     ]);

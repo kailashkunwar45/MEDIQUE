@@ -112,7 +112,7 @@ function DoctorProfileContent() {
       {/* Hero Banner */}
       <div className="w-full bg-gradient-to-br from-primary/20 via-primary/10 to-background border-b border-muted pb-8 pt-10 px-8">
         <div className="max-w-4xl mx-auto">
-          <Link href="/patient" className="text-sm text-primary hover:underline mb-6 inline-block">← Back to Dashboard</Link>
+          <Link to="/patient" className="text-sm text-primary hover:underline mb-6 inline-block">← Back to Dashboard</Link>
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
             <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-xl shadow-primary/20 shrink-0">
@@ -130,7 +130,7 @@ function DoctorProfileContent() {
                  </div>)}
               {doctor.hospitalId && (<p className="text-muted-foreground mt-2 text-sm">
                   🏥{" "}
-                  <Link href={`/hospitals/detail?id=${doctor.hospitalId._id}`} className="hover:underline text-foreground font-medium">
+                  <Link to={`/hospitals/detail?id=${doctor.hospitalId._id}`} className="hover:underline text-foreground font-medium">
                     {doctor.hospitalId.name}
                   </Link>
                   {doctor.hospitalId.address && <span> · {doctor.hospitalId.address}</span>}

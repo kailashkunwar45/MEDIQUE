@@ -148,7 +148,7 @@ export default function ProfilePage() {
       {/* Header */}
       <div className="w-full bg-gradient-to-br from-primary/15 via-primary/5 to-background border-b border-muted px-8 py-8">
         <div className="max-w-2xl mx-auto">
-          <Link href={getBackHref(role)} className="text-sm text-primary hover:underline mb-4 inline-block">← Back to Dashboard</Link>
+          <Link to={getBackHref(role)} className="text-sm text-primary hover:underline mb-4 inline-block">← Back to Dashboard</Link>
           <div className="flex items-center gap-5">
             {/* Avatar */}
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-2xl font-bold text-primary-foreground shadow-xl shadow-primary/20 shrink-0">
@@ -245,7 +245,7 @@ export default function ProfilePage() {
               <CardDescription>This is what patients see when they click on your name.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href={`/doctors?id=${session?._id}`}>
+              <Link to={`/doctors?id=${session?._id}`}>
                 <Button variant="outline" className="rounded-xl w-full">View Public Profile</Button>
               </Link>
             </CardContent>
@@ -257,10 +257,10 @@ export default function ProfilePage() {
               <CardTitle className="text-sm">Quick Links</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-2">
-              <Link href="/patient">
+              <Link to="/patient">
                 <Button variant="outline" className="rounded-xl w-full text-sm">My Appointments</Button>
               </Link>
-              <Link href="/hospitals">
+              <Link to="/hospitals">
                 <Button variant="outline" className="rounded-xl w-full text-sm">Browse Hospitals</Button>
               </Link>
             </CardContent>

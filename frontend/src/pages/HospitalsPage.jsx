@@ -66,7 +66,7 @@ export default function HospitalsPage() {
       {/* Header */}
       <div className="w-full bg-gradient-to-br from-emerald-500/10 via-primary/5 to-background border-b border-muted px-8 py-10">
         <div className="max-w-5xl mx-auto">
-          <Link href="/patient" className="text-sm text-primary hover:underline mb-4 inline-block">← Back to Dashboard</Link>
+          <Link to="/patient" className="text-sm text-primary hover:underline mb-4 inline-block">← Back to Dashboard</Link>
           <h1 className="text-4xl font-bold tracking-tight">Facility & Specialist Search</h1>
           <p className="text-muted-foreground mt-1">Find and book appointments at hospitals or search for specific doctors.</p>
           
@@ -104,7 +104,7 @@ export default function HospitalsPage() {
                       <TierBadge tier={h.subscriptionTier}/>
                     </div>
                     <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                      <Link href={`/hospitals/detail?id=${h._id}`}>{h.name}</Link>
+                      <Link to={`/hospitals/detail?id=${h._id}`}>{h.name}</Link>
                     </CardTitle>
                     <CardDescription className="text-xs">{h.address}</CardDescription>
                   </CardHeader>
@@ -118,7 +118,7 @@ export default function HospitalsPage() {
                         <a href={`tel:${h.contactPhone}`} className="hover:text-primary transition-colors">{h.contactPhone}</a>
                       </div>)}
                     <div className="pt-2">
-                      <Link href={`/hospitals/detail?id=${h._id}`}>
+                      <Link to={`/hospitals/detail?id=${h._id}`}>
                         <Button size="sm" className="w-full rounded-xl">View Facility</Button>
                       </Link>
                     </div>
@@ -142,7 +142,7 @@ export default function HospitalsPage() {
                         </span>)}
                     </div>
                     <CardTitle className="text-base mt-2 group-hover:text-primary transition-colors">
-                      <Link href={`/doctors?id=${d._id}`}>Dr. {d.name}</Link>
+                      <Link to={`/doctors?id=${d._id}`}>Dr. {d.name}</Link>
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {d.hospitalId?.name || "Independent"}
@@ -150,7 +150,7 @@ export default function HospitalsPage() {
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="pt-2">
-                      <Link href={`/doctors?id=${d._id}`}>
+                      <Link to={`/doctors?id=${d._id}`}>
                         <Button size="sm" className="w-full rounded-xl bg-white text-black hover:bg-slate-200">View Profile</Button>
                       </Link>
                     </div>

@@ -26,7 +26,7 @@ export function Navbar({ session }) {
     return (<nav className="w-full bg-white/70 backdrop-blur-xl border-b border-slate-200 px-8 py-6 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-6">
         <div className="flex items-center gap-5">
-          <Link href={getDashboardLink()}>
+          <Link to={getDashboardLink()}>
             <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xl border border-slate-100 p-2 cursor-pointer hover:scale-105 transition-transform">
               <img src="/logo.png" alt="MediQueue" className="w-full h-full object-contain"/>
             </div>
@@ -40,36 +40,36 @@ export function Navbar({ session }) {
         </div>
         
         <div className="flex items-center gap-3">
-          <Link href={getDashboardLink()}>
+          <Link to={getDashboardLink()}>
             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
               <LayoutDashboard className="w-4 h-4 mr-2"/> Dashboard
             </Button>
           </Link>
 
           {session?.role === "doctor" && (<>
-              <Link href="/doctor?tab=requests">
+              <Link to="/doctor?tab=requests">
                 <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
                   <Clock className="w-4 h-4 mr-2"/> Requests
                 </Button>
               </Link>
-              <Link href="/doctor?tab=chat-requests">
+              <Link to="/doctor?tab=chat-requests">
                 <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
                   <MessageSquare className="w-4 h-4 mr-2"/> Chat Req
                 </Button>
               </Link>
-              <Link href="/doctor?tab=current">
+              <Link to="/doctor?tab=current">
                 <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
                   <Activity className="w-4 h-4 mr-2"/> Active Encounters
                 </Button>
               </Link>
-              <Link href="/doctor?tab=past">
+              <Link to="/doctor?tab=past">
                 <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm">
                   <History className="w-4 h-4 mr-2"/> Historical Archive
                 </Button>
               </Link>
             </>)}
 
-          <Link href="/chat">
+          <Link to="/chat">
             <Button variant="outline" className="rounded-[14px] px-6 py-6 font-bold border-slate-200 bg-white hover:bg-slate-50 text-[#0F172A] transition-all shadow-sm relative group">
               <MessageSquare className="w-4 h-4 mr-2"/> Secure Chat
               {totalUnread > 0 && !isChatPage && (<span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-4 border-[#F8FAFC] font-black group-hover:scale-110 transition-transform animate-bounce">
@@ -78,7 +78,7 @@ export function Navbar({ session }) {
             </Button>
           </Link>
 
-          <Link href="/profile">
+          <Link to="/profile">
             <Button className="rounded-[14px] px-8 py-6 font-black bg-[#1E3A8A] text-white hover:bg-[#2563EB] shadow-xl transition-all scale-95 hover:scale-100 gold-glow-hover">
               <User className="w-4 h-4 mr-2"/> Profile
             </Button>

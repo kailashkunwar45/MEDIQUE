@@ -1,20 +1,20 @@
-const payment = require("../models/payment.model");
-const appointment = require("../models/appointment.model");
+const { Payment, PaymentStatus, PaymentProvider } = require("../models/payment.model");
+const { Appointment, AppointmentStatus } = require("../models/appointment.model");
 const crypto = require("crypto");
 const notification = require("../services/notification.service");
 const initiateKhaltiPayment = async (req, res) => {
   try {
     const { appointmentId, amount } = req.body;
     const patientId = req.user?._id;
-    const appointment = await appointment.Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId);
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });
-    const payment = await payment.Payment.create({
+    const payment = await Payment.create({
       patientId,
       appointmentId,
       hospitalId: appointment.hospitalId,
-      provider: payment.PaymentProvider.KHALTI,
+      provider: PaymentProvider.KHALTI,
       amount,
-      status: payment.PaymentStatus.PENDING,
+      status: PaymentStatus.PENDING,
       transactionId: crypto.randomBytes(8).toString("hex")
     });
     res.json({
@@ -30,12 +30,12 @@ const initiateKhaltiPayment = async (req, res) => {
 const verifyKhaltiPayment = async (req, res) => {
   try {
     const { token, amount, transactionId } = req.body;
-    const payment = await payment.Payment.findOne({ transactionId });
+    const payment = await Payment.findOne({ transactionId });
     if (!payment) return res.status(404).json({ message: "Payment record not found" });
-    payment.status = payment.PaymentStatus.SUCCESS;
+    payment.status = PaymentStatus.SUCCESS;
     payment.providerReferenceId = token;
     await payment.save();
-    const appointment = await appointment.Appointment.findByIdAndUpdate(payment.appointmentId, { paymentStatus: "paid" }, { new: true }).populate("patientId", "email name phone").populate("doctorId", "name");
+    const appointment = await Appointment.findByIdAndUpdate(payment.appointmentId, { paymentStatus: "paid" }, { new: true }).populate("patientId", "email name phone").populate("doctorId", "name");
     if (appointment) {
       const patient = appointment.patientId;
       const doctor = appointment.doctorId;
@@ -54,16 +54,16 @@ const initiateEsewaPayment = async (req, res) => {
   try {
     const { appointmentId, amount } = req.body;
     const patientId = req.user?._id;
-    const appointment = await appointment.Appointment.findById(appointmentId);
+    const appointment = await Appointment.findById(appointmentId);
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });
     const transactionId = crypto.randomBytes(8).toString("hex");
-    const payment = await payment.Payment.create({
+    const payment = await Payment.create({
       patientId,
       appointmentId,
       hospitalId: appointment.hospitalId,
-      provider: payment.PaymentProvider.ESEWA,
+      provider: PaymentProvider.ESEWA,
       amount,
-      status: payment.PaymentStatus.PENDING,
+      status: PaymentStatus.PENDING,
       transactionId
     });
     res.json({
@@ -79,12 +79,12 @@ const initiateEsewaPayment = async (req, res) => {
 const verifyEsewaPayment = async (req, res) => {
   try {
     const { transactionId, refId } = req.body;
-    const payment = await payment.Payment.findOne({ transactionId });
+    const payment = await Payment.findOne({ transactionId });
     if (!payment) return res.status(404).json({ message: "Payment record not found" });
-    payment.status = payment.PaymentStatus.SUCCESS;
+    payment.status = PaymentStatus.SUCCESS;
     payment.providerReferenceId = refId;
     await payment.save();
-    const appointment = await appointment.Appointment.findByIdAndUpdate(payment.appointmentId, { paymentStatus: "paid" }, { new: true }).populate("patientId", "email name phone").populate("doctorId", "name");
+    const appointment = await Appointment.findByIdAndUpdate(payment.appointmentId, { paymentStatus: "paid" }, { new: true }).populate("patientId", "email name phone").populate("doctorId", "name");
     if (appointment) {
       const patient = appointment.patientId;
       const doctor = appointment.doctorId;

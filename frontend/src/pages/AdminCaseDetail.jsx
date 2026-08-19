@@ -41,7 +41,7 @@ function CaseFileContent() {
     return (<div className="min-h-screen bg-[#F8FAFC] p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex items-center gap-4">
-           <Link href="/admin">
+           <Link to="/admin">
               <Button variant="ghost" className="rounded-xl"><ArrowLeft className="w-5 h-5"/></Button>
            </Link>
            <div>

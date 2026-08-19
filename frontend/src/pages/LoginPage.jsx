@@ -102,7 +102,7 @@ function LoginContent() {
               {loading ? "Authenticating..." : "Login"}
             </Button>
             <div className="text-sm text-muted-foreground text-center">
-              Don&apos;t have an account? <Link href="/register" className="text-primary font-bold hover:underline">Sign up</Link>
+              Don&apos;t have an account? <Link to="/register" className="text-primary font-bold hover:underline">Sign up</Link>
             </div>
           </CardFooter>
         </form>
